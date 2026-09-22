@@ -1,0 +1,19 @@
+{
+  "name": "sdd-kit",
+  "description": "A stack-agnostic Spec-Driven Development workflow plugin for Claude Code.",
+  "owner": {
+    "name": "Irvinng"
+  },
+  "plugins": [
+    {
+      "name": "sdd",
+      "source": "./",
+      "description": "Spec-Driven Development workflow with clarification gate, drift detection, steering docs, stack detection, security review, estimates and a tasks commit guard. Stack-agnostic.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Irvinng"
+      },
+      "license": "MIT"
+    }
+  ]
+}
