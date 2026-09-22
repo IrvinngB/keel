@@ -14,7 +14,7 @@ lock-in.
 ## Install
 
 ```
-/plugin marketplace add <your-github>/sdd-kit
+/plugin marketplace add IrvinngB/sdd-kit
 /plugin install sdd@sdd-kit
 ```
 
