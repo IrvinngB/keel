@@ -1,7 +1,7 @@
 {
   "name": "sdd",
   "description": "Spec-Driven Development pipeline: explore→proposal→spec→clarify→design→blast-radius→tasks→apply→verify→archive with clarify gate, blast-radius mapping, drift detection, steering docs, postmortem learning, stack detection, security review, estimates, commit guard. Stack-agnostic.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Irvinng"
   },
