@@ -1,5 +1,5 @@
 #!/bin/sh
-# sdd-kit commit guard v2
+# keel commit guard v2
 # Universal git pre-commit hook — works with ANY agent or human.
 #
 # 1. Blocks `git commit` while an ACTIVE change (openspec/changes/<c>/tasks.md)
@@ -31,7 +31,7 @@ done
 
 if [ -n "$offenders" ]; then
   {
-    printf '%s\n' "sdd-kit commit guard: active change(s) still have unchecked tasks:"
+    printf '%s\n' "Keel commit guard: active change(s) still have unchecked tasks:"
     printf '%s' "$offenders"
     printf '\n%s\n' "Finish them (apply phase), or bypass deliberately: SDD_ALLOW_COMMIT=1 git commit ... (WIP, docs-only, chained-PR boundaries)"
   } >&2
@@ -53,7 +53,7 @@ done
 IFS=$oldifs
 
 if [ -n "$locks" ]; then
-  printf '%s\n' "sdd-kit dependency notice: lockfile(s) staged:$locks" >&2
+  printf '%s\n' "Keel dependency notice: lockfile(s) staged:$locks" >&2
   printf '%s\n' "  → verify each added package is recorded in apply-progress.md (deps: name, purpose, license, overlap). Full audit: run the sdd-security review." >&2
   if [ "${SDD_DEPS_STRICT}" = "1" ]; then
     recorded=0

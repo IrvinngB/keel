@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// sdd-kit CLI — build adapters, install them, inspect pipeline state. Zero deps.
+// Keel CLI (`sdd`) — build adapters, install them, inspect pipeline state. Zero deps.
 
 const fs = require('fs');
 const path = require('path');
@@ -20,16 +20,53 @@ const HOME = process.env.HOME || '';
 function die(msg) { console.error(`sdd: ${msg}`); process.exit(1); }
 function say(...m) { console.log(...m); }
 
-const REGISTRY = JSON.parse(fs.readFileSync(path.join(ROOT, 'build', 'manifest.json'), 'utf8')).registry;
+const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'build', 'manifest.json'), 'utf8'));
+const REGISTRY = MANIFEST.registry;
+const SHARED = MANIFEST.sharedSkillsDir;
 const AGENT_IDS = Object.keys(REGISTRY);
 const expand = (p) => (p.startsWith('~') ? path.join(HOME, p.slice(1)) : p);
 const fill = (tpl, name) => tpl.replace(/\{name\}/g, () => name).replace(/\{short\}/g, () => name.replace(/^sdd-/, ''));
+// Managed blocks are wrapped in `keel:begin/end agent=<id>` markers. The scanner is strict:
+// blocks must not nest, ends must match their begin, and each agent may own one block per
+// file. Anything else is MALFORMED and install refuses to touch the file.
+// The legacy generic block (no end marker) is unmanaged: doctor reports it, nothing edits it.
 const LEGACY_GENERIC_BLOCK = /<!-- sdd-kit generic block v\d+ -->/;
-const blockRe = (id) => new RegExp(`<!-- sdd-kit:begin agent=${id} -->[\\s\\S]*?<!-- sdd-kit:end agent=${id} -->\\n?`);
-const hasBlock = (text, id) => blockRe(id).test(text) || (id === 'generic' && LEGACY_GENERIC_BLOCK.test(text));
+const MARKER = /<!-- keel:(begin|end) agent=([a-z0-9-]+) -->/g;
+const lineOf = (text, index) => text.slice(0, index).split('\n').length;
+
+function scanBlocks(text) {
+  const blocks = [];
+  let open = null;
+  const seen = new Map();
+  for (const m of text.matchAll(MARKER)) {
+    const [tok, kind, id] = m;
+    const line = lineOf(text, m.index);
+    if (kind === 'begin') {
+      if (open) return { error: `line ${line}: begin marker for agent=${id} while the block for agent=${open.id} (line ${open.line}) has no end marker` };
+      if (seen.has(id)) return { error: `line ${line}: second block for agent=${id} (the first is at line ${seen.get(id)})` };
+      open = { id, line, start: m.index };
+      seen.set(id, line);
+    } else {
+      if (!open) return { error: `line ${line}: end marker for agent=${id} without a begin marker` };
+      if (open.id !== id) return { error: `line ${line}: end marker for agent=${id} closes the block for agent=${open.id} that began at line ${open.line}` };
+      let end = m.index + tok.length;
+      const nl = /^\r?\n/.exec(text.slice(end));
+      if (nl) end += nl[0].length;
+      blocks.push({ id, start: open.start, end });
+      open = null;
+    }
+  }
+  if (open) return { error: `line ${open.line}: begin marker for agent=${open.id} has no end marker` };
+  return { blocks };
+}
+
+const eolOf = (text) => {
+  const crlf = (text.match(/\r\n/g) || []).length;
+  const lf = (text.match(/\n/g) || []).length - crlf;
+  return crlf > lf ? '\r\n' : '\n';
+};
+const hasBlock = (text, id) => { const r = scanBlocks(text); return Boolean(r.blocks && r.blocks.some((b) => b.id === id)); };
 const readersOf = (dir) => AGENT_IDS.filter((a) => (REGISTRY[a].skillsRead || []).includes(dir));
-const ownerOf = (dir) => AGENT_IDS.filter((a) => REGISTRY[a].sharedSkillsDir === dir);
-const ownDirs = (id) => ((REGISTRY[id].install.project && REGISTRY[id].install.project.map) || []).map((m) => m.to);
 
 function safeContextFile(name) {
   if (!name) die('--context-file needs a file name');
@@ -43,6 +80,42 @@ function safeContextFile(name) {
   while (!fs.existsSync(probe) && probe !== cwd) probe = path.dirname(probe);
   if (fs.existsSync(probe) && !inside(fs.realpathSync(probe))) die('--context-file resolves outside the project (symlink)');
   return target;
+}
+
+// Read-only scan of project context files for blocks sdd did not write with managed markers.
+function contextFilesToScan() {
+  const files = new Set(['AGENTS.md']);
+  for (const id of AGENT_IDS) {
+    const f = REGISTRY[id].install.contextFile && REGISTRY[id].install.contextFile.project;
+    if (f) files.add(f);
+  }
+  return [...files];
+}
+
+function legacyFindings() {
+  const out = [];
+  for (const f of contextFilesToScan()) {
+    if (!fs.existsSync(f)) continue;
+    const text = fs.readFileSync(f, 'utf8');
+    const m = LEGACY_GENERIC_BLOCK.exec(text);
+    if (m) {
+      out.push(`notice: ${f}:${lineOf(text, m.index)} holds a legacy generic block (${m[0]}) with no end marker. It is unmanaged: ` +
+        'sdd install appends a managed block and leaves this one untouched, and doctor never edits files. ' +
+        'To clean up by hand, delete the legacy block yourself.');
+    }
+    const scan = scanBlocks(text);
+    if (scan.error) out.push(`error: ${f}: malformed keel block markers — ${scan.error}. sdd install refuses to modify this file until it is fixed by hand.`);
+  }
+  return out;
+}
+
+// User-level skills dirs an agent may read: its own install target plus the shared dirs it reads
+// under $HOME. The home-relative layout of the shared dirs mirrors the project one (unverified).
+function userSkillDirs(id) {
+  const r = REGISTRY[id];
+  const u = r.install.user;
+  const own = ((u && u.map) || []).filter((m) => m.from === 'skills').map((m) => path.join(expand(u.root), m.to));
+  return [...new Set([...own, ...(r.skillsRead || []).map((d) => path.join(HOME, d))])];
 }
 
 function unverifiedNote(id) {
@@ -122,12 +195,18 @@ function hasSddEntry(dir) {
   try { return fs.readdirSync(dir).some((n) => n.startsWith('sdd')); } catch (e) { return false; }
 }
 
+// The shared skills dir says nothing about WHICH agent was installed (skills are written once
+// for every reader), so "installed" means an agent-specific artifact: its own non-shared dirs
+// or its per-agent context-file block.
 function installedInProject(id) {
   const r = REGISTRY[id];
-  if (r.install.method === 'plugin') return REGISTRY[id].projectMarkers.some((p) => fs.existsSync(p));
+  if (r.install.method === 'plugin') return r.projectMarkers.some((p) => fs.existsSync(p));
   if (r.install.method === 'floor') return fs.existsSync(path.join('.sdd', 'core'));
-  const map = (r.install.project && r.install.project.map) || [];
-  return map.some((m) => hasSddEntry(path.join(r.install.project.root, m.to)));
+  const proj = r.install.project;
+  const own = ((proj && proj.map) || []).map((m) => m.to).filter((d) => d !== SHARED);
+  if (own.some((d) => hasSddEntry(path.join(proj.root, d)))) return true;
+  const cf = r.install.contextFile && r.install.contextFile.project;
+  return Boolean(cf && fs.existsSync(cf) && hasBlock(fs.readFileSync(cf, 'utf8'), id));
 }
 
 function dialect() {
@@ -141,27 +220,37 @@ function dialect() {
   return { name: 'none', next: fill(REGISTRY.claude.invoke.cmd, 'continue'), hint: '  (no adapter detected in this repo yet — sdd install <tool>)' };
 }
 
+// Refuse (before anything is written) to work with a context file whose markers are malformed.
+function assertMarkersSane(file) {
+  if (!fs.existsSync(file)) return;
+  const scan = scanBlocks(fs.readFileSync(file, 'utf8'));
+  if (scan.error) {
+    console.error(`sdd: ${file}: malformed keel block markers — ${scan.error}.\n  Fix or delete the stray marker(s) by hand, then re-run. Nothing was written.`);
+    process.exit(1);
+  }
+}
+
 // Each agent owns one marked region; re-runs replace only that region and never touch
 // user content outside the markers, so codex and kimi can share one AGENTS.md.
+// A malformed file aborts the install before anything is written.
 function upsertBlock(file, blockPath, id) {
-  const block = fs.readFileSync(blockPath, 'utf8');
   const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const re = blockRe(id);
-  if (re.test(existing)) {
-    const next = existing.replace(re, () => block);
+  assertMarkersSane(file);
+  const scan = scanBlocks(existing);
+  const eol = eolOf(existing);
+  const block = fs.readFileSync(blockPath, 'utf8').replace(/\r?\n/g, eol);
+  const cur = scan.blocks.find((b) => b.id === id);
+  if (cur) {
+    const next = existing.slice(0, cur.start) + block + existing.slice(cur.end);
     if (next === existing) { say(`${file}: ${id} block already up to date.`); return; }
-    if (DRY) { say(`  would update the ${id} block in ${file}`); return; }
+    if (DRY) { say(`  would replace the ${id} block in ${file}`); return; }
     fs.writeFileSync(file, next);
     say(`${id} block updated → ${file}`);
     return;
   }
-  if (id === 'generic' && LEGACY_GENERIC_BLOCK.test(existing)) {
-    say(`${file} already contains a legacy generic sdd-kit block — left as is (delete it and re-run to get the marked block).`);
-    return;
-  }
   if (DRY) { say(`  would append the ${id} block to ${file}`); return; }
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.appendFileSync(file, (existing ? (existing.endsWith('\n') ? '\n' : '\n\n') : '') + block);
+  fs.appendFileSync(file, (existing ? (existing.endsWith('\n') ? eol : eol + eol) : '') + block);
   say(`${id} block appended → ${file}`);
 }
 
@@ -174,7 +263,7 @@ function installAgent(id, scope) {
   if (r.install.method === 'plugin') {
     say(`${r.displayName} installs plugins from the marketplace — run inside it:`);
     for (const c of r.install.pluginCommands) say(`  ${c}`);
-    say('local testing from this clone instead: /plugin marketplace add <path-to-sdd-kit>');
+    say('local testing from this clone instead: /plugin marketplace add <path-to-keel>');
     return;
   }
 
@@ -182,6 +271,8 @@ function installAgent(id, scope) {
     if (scope === 'user') die('generic install is per-project (--project)');
     const cwd = process.cwd();
     const extra = flagVals['context-file'] !== undefined ? safeContextFile(flagVals['context-file']) : null;
+    assertMarkersSane(path.join(cwd, 'AGENTS.md'));
+    if (extra) assertMarkersSane(extra);
     const n = copyTree(path.join(src, 'core'), path.join(cwd, '.sdd', 'core'));
     const block = path.join(src, 'AGENTS.block.md');
     upsertBlock(path.join(cwd, 'AGENTS.md'), block, id);
@@ -194,6 +285,8 @@ function installAgent(id, scope) {
   const target = r.install[scope];
   if (!target) die(`${id} has no ${scope} install target`);
   const base = scope === 'user' ? expand(target.root) : path.join(process.cwd(), target.root);
+  const ctxDest = r.emit.contextFile && r.install.contextFile && r.install.contextFile[scope];
+  if (ctxDest) assertMarkersSane(scope === 'user' ? expand(ctxDest) : path.join(process.cwd(), ctxDest));
   let total = 0;
   for (const m of target.map) total += copyTree(path.join(src, m.from), path.join(base, m.to));
   say(`${id} (${scope}): ${DRY ? 'would install' : 'installed'} ${total} files → ${base}`);
@@ -213,22 +306,20 @@ function installAgent(id, scope) {
   }
 }
 
-// Several agents read the same skills dirs; say so at install time instead of leaving
-// the user to find duplicated or mismatched skills later.
+// Skills are installed once, in the shared dir, with invocation-neutral bodies. The only real
+// double-discovery left is a stale copy from an older install, so warn about exactly that.
 function skillsDirNotices(id, target, base) {
   const r = REGISTRY[id];
   const dests = target.map.map((m) => m.to);
-  if (r.sharedSkillsDir && dests.includes(r.sharedSkillsDir)) {
-    const others = readersOf(r.sharedSkillsDir).filter((a) => a !== id);
-    say(`notice: ${r.sharedSkillsDir} is a shared skills dir${others.length ? ` (also read by ${others.join(', ')})` : ''}. ` +
-      `Its skills are invocation-neutral; ${r.displayName}-specific syntax lives only in the context-file block. Written once.`);
+  if (dests.includes(SHARED)) {
+    const others = readersOf(SHARED).filter((a) => a !== id);
+    say(`notice: skills are installed once in ${SHARED}${others.length ? ` (shared with ${others.join(', ')})` : ''}. ` +
+      `They are invocation-neutral; ${r.displayName}-specific syntax lives only in its own context-file block or native files.`);
   }
-  const mine = dests.filter((d) => (r.skillsRead || []).includes(d));
   for (const d of r.skillsRead || []) {
     if (dests.includes(d) || !hasSddEntry(path.join(base, d))) continue;
-    const from = ownerOf(d);
-    say(`warning: ${r.displayName} also reads ${d}, which already holds sdd skills${from.length ? ` (from ${from.join(', ')})` : ''} — ` +
-      `they will be discovered twice (${[...mine, d].join(' + ')}). Keep only one copy.`);
+    say(`warning: ${r.displayName} also reads ${d}, which still holds sdd skills (likely from an earlier install) — ` +
+      `they would be discovered twice. Remove the sdd* entries from ${d}; sdd never deletes your files.`);
   }
 }
 
@@ -324,9 +415,7 @@ function main() {
         const r = REGISTRY[id];
         const found = r.detect.length ? r.detect.some((p) => fs.existsSync(expand(p))) : null;
         const inProject = installedInProject(id);
-        const own = ownDirs(id);
         const seen = (r.skillsRead || []).filter((d) => hasSddEntry(d));
-        const viaOthers = seen.filter((d) => !own.includes(d));
         const cf = r.emit.contextFile;
         let ctx = '';
         if (cf) {
@@ -334,13 +423,19 @@ function main() {
           const has = f && fs.existsSync(f) && hasBlock(fs.readFileSync(f, 'utf8'), id);
           ctx = ` · ${cf.name}: ${has ? 'block present' : inProject ? 'block MISSING' : '—'}`;
         }
-        const proj = inProject ? 'installed' : viaOthers.length ? `sees skills via ${viaOthers.join(', ')}` : '—';
-        say(`  ${id.padEnd(9)} ${r.status.padEnd(13)} tool ${found === null ? 'n/a' : found ? 'found' : '—'} · project ${proj}${ctx}`);
+        const via = seen.length ? ` · skills in ${seen.join(', ')}` : '';
+        say(`  ${id.padEnd(9)} ${r.status.padEnd(13)} tool ${found === null ? 'n/a' : found ? 'found' : '—'} · project ${inProject ? 'installed' : '—'}${via}${ctx}`);
         const note = unverifiedNote(id);
         if (note && (found || inProject)) warnings.push(note);
+        const seenUser = HOME ? userSkillDirs(id).filter((d) => hasSddEntry(d)) : [];
+        if (seenUser.length > 1 && found)
+          warnings.push(`warning: ${r.displayName} may discover the sdd skills twice at user level — they exist in ${seenUser.join(' and ')}. ` +
+            'Keep one copy and remove the sdd* entries from the other; sdd never deletes your files.');
         if (seen.length > 1 && (found || inProject))
-          warnings.push(`warning: ${r.displayName} would discover the sdd skills twice — they exist in ${seen.join(' and ')}. Keep one copy (remove the sdd* entries from the other dir).`);
+          warnings.push(`warning: ${r.displayName} would discover the sdd skills twice — they exist in ${seen.join(' and ')}. ` +
+            `Skills now live once in ${SHARED}; an older install probably left the other copy. Remove the sdd* entries from the extra dir.`);
       }
+      warnings.push(...legacyFindings());
       for (const w of warnings) say(`\n${w}`);
       say(`\nproject: ${process.cwd()}`);
       say(`  openspec/            ${fs.existsSync('openspec') ? 'yes' : 'NO — run /sdd:init'}`);
@@ -360,7 +455,7 @@ function main() {
         }
       } catch (e) { /* no config yet */ }
       const hook = path.join('.git', 'hooks', 'pre-commit');
-      const installed = fs.existsSync(hook) && fs.readFileSync(hook, 'utf8').includes('sdd-kit commit guard');
+      const installed = fs.existsSync(hook) && ownsHook(fs.readFileSync(hook, 'utf8'));
       say(`  commit guard         ${installed ? 'installed' : 'NOT installed — sdd guard install'}`);
       say(`  dialect in use       ${dialect().name}`);
       return;
@@ -371,7 +466,7 @@ function main() {
 
     case undefined:
     case 'help':
-      say(`sdd-kit — Spec-Driven Development for any coding agent
+      say(`Keel (sdd) — Spec-Driven Development for any coding agent
 
   sdd build                          regenerate adapters/ from core/
   sdd install <agent> [--user|--project] [--dry-run]
@@ -413,22 +508,24 @@ function probeBackend(name) {
   return 'cannot be verified offline — ask your agent to SAVE then LOAD a test key';
 }
 
+const GUARD_MARKER = '# keel commit guard v2';
+const ownsHook = (text) => text.includes(GUARD_MARKER);
+
 function runGuard(action) {
   const dir = path.join('.git', 'hooks');
   if (!fs.existsSync(dir)) die('not a git repository (no .git/hooks)');
   const target = path.join(dir, 'pre-commit');
-  const marker = '# sdd-kit commit guard v2';
   const CHAIN_START = '# --- chained original pre-commit ---';
   const CHAIN_END = '# --- end chain ---';
   const chainRe = /# --- chained original pre-commit ---\n([\s\S]*?)\n# --- end chain ---/;
   if (action === 'remove') {
-    if (fs.existsSync(target) && fs.readFileSync(target, 'utf8').includes(marker)) {
+    if (fs.existsSync(target) && ownsHook(fs.readFileSync(target, 'utf8'))) {
       const m = fs.readFileSync(target, 'utf8').match(chainRe);
       if (m) {
         fs.writeFileSync(target, '#!/bin/sh\n' + m[1] + '\n', { mode: 0o755 });
         say('commit guard removed — original chained pre-commit restored.');
       } else { fs.rmSync(target); say('commit guard removed.'); }
-    } else say('no sdd-kit guard found at .git/hooks/pre-commit');
+    } else say('no Keel guard found at .git/hooks/pre-commit');
     return;
   }
   const template = fs.readFileSync(path.join(ROOT, 'hooks', 'pre-commit'), 'utf8');
@@ -437,7 +534,7 @@ function runGuard(action) {
     const cur = fs.readFileSync(target, 'utf8');
     const m = cur.match(chainRe);
     if (m) chain = m[1]; // reinstall: preserve the user's original
-    else if (cur.includes(marker)) {
+    else if (ownsHook(cur)) {
       fs.writeFileSync(target, template, { mode: 0o755 });
       say('commit guard updated.');
       return;
