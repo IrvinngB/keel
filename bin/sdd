@@ -10,11 +10,48 @@ const ROOT = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const cmd = args[0];
 const flags = new Set(args.slice(1).filter((a) => a.startsWith('--')));
+const flagVals = Object.fromEntries(
+  args.slice(1).filter((a) => /^--[a-z-]+=/.test(a)).map((a) => [a.slice(2, a.indexOf('=')), a.slice(a.indexOf('=') + 1)])
+);
 const pos = args.slice(1).filter((a) => !a.startsWith('--'));
 const DRY = flags.has('--dry-run');
+const HOME = process.env.HOME || '';
 
 function die(msg) { console.error(`sdd: ${msg}`); process.exit(1); }
 function say(...m) { console.log(...m); }
+
+const REGISTRY = JSON.parse(fs.readFileSync(path.join(ROOT, 'build', 'manifest.json'), 'utf8')).registry;
+const AGENT_IDS = Object.keys(REGISTRY);
+const expand = (p) => (p.startsWith('~') ? path.join(HOME, p.slice(1)) : p);
+const fill = (tpl, name) => tpl.replace(/\{name\}/g, () => name).replace(/\{short\}/g, () => name.replace(/^sdd-/, ''));
+const LEGACY_GENERIC_BLOCK = /<!-- sdd-kit generic block v\d+ -->/;
+const blockRe = (id) => new RegExp(`<!-- sdd-kit:begin agent=${id} -->[\\s\\S]*?<!-- sdd-kit:end agent=${id} -->\\n?`);
+const hasBlock = (text, id) => blockRe(id).test(text) || (id === 'generic' && LEGACY_GENERIC_BLOCK.test(text));
+const readersOf = (dir) => AGENT_IDS.filter((a) => (REGISTRY[a].skillsRead || []).includes(dir));
+const ownerOf = (dir) => AGENT_IDS.filter((a) => REGISTRY[a].sharedSkillsDir === dir);
+const ownDirs = (id) => ((REGISTRY[id].install.project && REGISTRY[id].install.project.map) || []).map((m) => m.to);
+
+function safeContextFile(name) {
+  if (!name) die('--context-file needs a file name');
+  if (path.isAbsolute(name) || /^[a-zA-Z]:/.test(name)) die('--context-file must be a relative path inside the project');
+  if (name.split(/[\\/]+/).includes('..')) die('--context-file must not contain ".."');
+  const cwd = fs.realpathSync(process.cwd());
+  const target = path.resolve(cwd, name);
+  const inside = (p) => p === cwd || p.startsWith(cwd + path.sep);
+  if (!inside(target)) die('--context-file resolves outside the project');
+  let probe = target;
+  while (!fs.existsSync(probe) && probe !== cwd) probe = path.dirname(probe);
+  if (fs.existsSync(probe) && !inside(fs.realpathSync(probe))) die('--context-file resolves outside the project (symlink)');
+  return target;
+}
+
+function unverifiedNote(id) {
+  const r = REGISTRY[id];
+  const fields = r.unverifiedFields || [];
+  if (r.status === 'verified' && !fields.length) return null;
+  const head = r.status === 'experimental' ? 'EXPERIMENTAL' : 'partially verified against docs';
+  return `warning: ${r.displayName} is ${head}${fields.length ? ` — unverified: ${fields.join(', ')}` : ''}\n  ${r.notes}`;
+}
 
 const PHASES = [
   ['explore', 'exploration.md'],
@@ -81,19 +118,125 @@ function guardDecision(dir) {
   return /Chain strategy: (?!pending)/.test(t) ? 'resolved' : 'PENDING';
 }
 
+function hasSddEntry(dir) {
+  try { return fs.readdirSync(dir).some((n) => n.startsWith('sdd')); } catch (e) { return false; }
+}
+
+function installedInProject(id) {
+  const r = REGISTRY[id];
+  if (r.install.method === 'plugin') return REGISTRY[id].projectMarkers.some((p) => fs.existsSync(p));
+  if (r.install.method === 'floor') return fs.existsSync(path.join('.sdd', 'core'));
+  const map = (r.install.project && r.install.project.map) || [];
+  return map.some((m) => hasSddEntry(path.join(r.install.project.root, m.to)));
+}
+
 function dialect() {
   const has = (p) => fs.existsSync(p);
-  if (has('.claude') || has('CLAUDE.md')) return { name: 'claude', next: '/sdd:continue' };
-  if (has('.opencode')) return { name: 'opencode', next: '/sdd-continue' };
+  if (has('.claude') || has('CLAUDE.md')) return { name: 'claude', next: fill(REGISTRY.claude.invoke.cmd, 'continue') };
+  for (const id of AGENT_IDS) {
+    if (id === 'claude' || id === 'generic') continue;
+    if (installedInProject(id)) return { name: id, next: fill(REGISTRY[id].invoke.cmd, 'continue') };
+  }
   if (has('.sdd') || has('AGENTS.md')) return { name: 'generic', next: 'read .sdd/core/phases/<next-phase>.md (single-phase mode)' };
-  return { name: 'none', next: '/sdd:continue', hint: '  (no adapter detected in this repo yet — sdd install <tool>)' };
+  return { name: 'none', next: fill(REGISTRY.claude.invoke.cmd, 'continue'), hint: '  (no adapter detected in this repo yet — sdd install <tool>)' };
+}
+
+// Each agent owns one marked region; re-runs replace only that region and never touch
+// user content outside the markers, so codex and kimi can share one AGENTS.md.
+function upsertBlock(file, blockPath, id) {
+  const block = fs.readFileSync(blockPath, 'utf8');
+  const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const re = blockRe(id);
+  if (re.test(existing)) {
+    const next = existing.replace(re, () => block);
+    if (next === existing) { say(`${file}: ${id} block already up to date.`); return; }
+    if (DRY) { say(`  would update the ${id} block in ${file}`); return; }
+    fs.writeFileSync(file, next);
+    say(`${id} block updated → ${file}`);
+    return;
+  }
+  if (id === 'generic' && LEGACY_GENERIC_BLOCK.test(existing)) {
+    say(`${file} already contains a legacy generic sdd-kit block — left as is (delete it and re-run to get the marked block).`);
+    return;
+  }
+  if (DRY) { say(`  would append the ${id} block to ${file}`); return; }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, (existing ? (existing.endsWith('\n') ? '\n' : '\n\n') : '') + block);
+  say(`${id} block appended → ${file}`);
+}
+
+function installAgent(id, scope) {
+  const r = REGISTRY[id];
+  const note = unverifiedNote(id);
+  if (note) say(note + '\n');
+  const src = path.join(ROOT, 'adapters', id);
+
+  if (r.install.method === 'plugin') {
+    say(`${r.displayName} installs plugins from the marketplace — run inside it:`);
+    for (const c of r.install.pluginCommands) say(`  ${c}`);
+    say('local testing from this clone instead: /plugin marketplace add <path-to-sdd-kit>');
+    return;
+  }
+
+  if (r.install.method === 'floor') {
+    if (scope === 'user') die('generic install is per-project (--project)');
+    const cwd = process.cwd();
+    const extra = flagVals['context-file'] !== undefined ? safeContextFile(flagVals['context-file']) : null;
+    const n = copyTree(path.join(src, 'core'), path.join(cwd, '.sdd', 'core'));
+    const block = path.join(src, 'AGENTS.block.md');
+    upsertBlock(path.join(cwd, 'AGENTS.md'), block, id);
+    if (extra) upsertBlock(extra, block, id);
+    say(`generic: ${DRY ? 'would install' : 'installed'} ${n} core files → .sdd/core/ + context file binding`);
+    return DRY ? say('  would install the commit guard') : runGuard('install');
+  }
+
+  if (!scope) die(`${id} needs --user or --project`);
+  const target = r.install[scope];
+  if (!target) die(`${id} has no ${scope} install target`);
+  const base = scope === 'user' ? expand(target.root) : path.join(process.cwd(), target.root);
+  let total = 0;
+  for (const m of target.map) total += copyTree(path.join(src, m.from), path.join(base, m.to));
+  say(`${id} (${scope}): ${DRY ? 'would install' : 'installed'} ${total} files → ${base}`);
+  say(DRY ? 'note: dry run — nothing was written.' : 'note: existing same-named files were overwritten; others untouched.');
+  skillsDirNotices(id, target, base);
+
+  const cf = r.emit.contextFile;
+  if (cf) {
+    const blockPath = path.join(src, cf.blockFile);
+    const dest = r.install.contextFile && r.install.contextFile[scope];
+    if (dest) upsertBlock(scope === 'user' ? expand(dest) : path.join(process.cwd(), dest), blockPath, id);
+    else say(`no verified ${scope}-level ${cf.name} path for ${r.displayName} — append ${blockPath} to your ${cf.name} manually.`);
+  }
+  if (cf && !r.hooks && scope === 'project' && fs.existsSync(path.join('.git', 'hooks'))) {
+    say(`${r.displayName} has no native commit hook — ${DRY ? 'would install' : 'installing'} the universal git guard.`);
+    if (!DRY) runGuard('install');
+  }
+}
+
+// Several agents read the same skills dirs; say so at install time instead of leaving
+// the user to find duplicated or mismatched skills later.
+function skillsDirNotices(id, target, base) {
+  const r = REGISTRY[id];
+  const dests = target.map.map((m) => m.to);
+  if (r.sharedSkillsDir && dests.includes(r.sharedSkillsDir)) {
+    const others = readersOf(r.sharedSkillsDir).filter((a) => a !== id);
+    say(`notice: ${r.sharedSkillsDir} is a shared skills dir${others.length ? ` (also read by ${others.join(', ')})` : ''}. ` +
+      `Its skills are invocation-neutral; ${r.displayName}-specific syntax lives only in the context-file block. Written once.`);
+  }
+  const mine = dests.filter((d) => (r.skillsRead || []).includes(d));
+  for (const d of r.skillsRead || []) {
+    if (dests.includes(d) || !hasSddEntry(path.join(base, d))) continue;
+    const from = ownerOf(d);
+    say(`warning: ${r.displayName} also reads ${d}, which already holds sdd skills${from.length ? ` (from ${from.join(', ')})` : ''} — ` +
+      `they will be discovered twice (${[...mine, d].join(' + ')}). Keep only one copy.`);
+  }
 }
 
 function copyTree(src, dst) {
   if (!fs.existsSync(src)) die(`missing ${src} — run: sdd build`);
   let n = 0;
   const walk = (s, d) => {
-    fs.mkdirSync(d, { recursive: true });
+    if (!DRY) fs.mkdirSync(d, { recursive: true });
     for (const e of fs.readdirSync(s, { withFileTypes: true })) {
       const sp = path.join(s, e.name), dp = path.join(d, e.name);
       if (e.isDirectory()) walk(sp, dp);
@@ -117,42 +260,9 @@ function main() {
     case 'install': {
       const tool = pos[0];
       const scope = flags.has('--project') ? 'project' : flags.has('--user') ? 'user' : null;
-      if (!tool) die('usage: sdd install <claude|opencode|generic> [--user|--project] [--dry-run]');
-      if (tool === 'claude') {
-        say('Claude Code installs plugins from the marketplace — run inside Claude Code:');
-        say('  /plugin marketplace add IrvinngB/sdd-kit');
-        say('  /plugin install sdd@sdd-kit');
-        say('local testing from this clone instead: /plugin marketplace add <path-to-sdd-kit>');
-        return;
-      }
-      if (tool === 'opencode') {
-        if (!scope) die('opencode needs --user or --project');
-        const base = scope === 'user'
-          ? path.join(process.env.HOME || '', '.config', 'opencode')
-          : path.join(process.cwd(), '.opencode');
-        const src = path.join(ROOT, 'adapters', 'opencode');
-        let total = 0;
-        for (const d of ['agent', 'command', 'skills']) total += copyTree(path.join(src, d), path.join(base, d));
-        say(`opencode (${scope}): ${DRY ? 'would install' : 'installed'} ${total} files → ${base}`);
-        say('note: existing same-named files were overwritten; others untouched.');
-        return;
-      }
-      if (tool === 'generic') {
-        if (scope === 'user') die('generic install is per-project (--project)');
-        const cwd = process.cwd();
-        const n = copyTree(path.join(ROOT, 'adapters', 'generic', 'core'), path.join(cwd, '.sdd', 'core'));
-        const block = path.join(ROOT, 'adapters', 'generic', 'AGENTS.block.md');
-        const agents = path.join(cwd, 'AGENTS.md');
-        const marker = 'sdd-kit generic block';
-        const existing = fs.existsSync(agents) ? fs.readFileSync(agents, 'utf8') : '';
-        if (!existing.includes(marker)) {
-          if (DRY) say(`  would append ${agents}`);
-          else fs.appendFileSync(agents, '\n' + fs.readFileSync(block, 'utf8'));
-        } else say('AGENTS.md already contains the sdd-kit block — skipped.');
-        say(`generic: ${DRY ? 'would install' : 'installed'} ${n} core files → .sdd/core/ + AGENTS.md binding`);
-        return runGuard('install');
-      }
-      die(`unknown tool "${tool}" — claude | opencode | generic`);
+      if (!tool) die(`usage: sdd install <${AGENT_IDS.join('|')}> [--user|--project] [--dry-run]`);
+      if (!REGISTRY[tool]) die(`unknown tool "${tool}" — ${AGENT_IDS.join(' | ')}`);
+      return installAgent(tool, scope);
     }
 
     case 'status': {
@@ -181,7 +291,7 @@ function main() {
 
     case 'next': {
       const changes = activeChanges();
-      if (!changes.length) { const d = dialect(); die(`no active changes — start one: ${d.name === 'opencode' ? '/sdd-new' : d.name === 'generic' ? 'follow .sdd/core/commands/new.md' : '/sdd:new'} <change-name>`); }
+      if (!changes.length) { const d = dialect(); die(`no active changes — start one: ${d.name === 'generic' ? 'follow .sdd/core/commands/new.md' : fill(REGISTRY[d.name === 'none' ? 'claude' : d.name].invoke.cmd, 'new')} <change-name>`); }
       const pick = pos[0] ? changes.filter((c) => c === pos[0]) : changes;
       for (const c of pick) {
         const dir = path.join('openspec', 'changes', c);
@@ -208,15 +318,30 @@ function main() {
     }
 
     case 'doctor': {
-      const home = process.env.HOME || '';
-      const tools = [
-        ['claude', [path.join(home, '.claude')]],
-        ['opencode', [path.join(home, '.config', 'opencode')]],
-        ['codex', [path.join(home, '.codex')]],
-        ['gemini', [path.join(home, '.gemini')]],
-      ];
-      say('detected agent installs:');
-      for (const [t, ps] of tools) say(`  ${t.padEnd(9)}${ps.some(fs.existsSync) ? 'found' : '—'}`);
+      say('agents (from build/manifest.json registry):');
+      const warnings = [];
+      for (const id of AGENT_IDS) {
+        const r = REGISTRY[id];
+        const found = r.detect.length ? r.detect.some((p) => fs.existsSync(expand(p))) : null;
+        const inProject = installedInProject(id);
+        const own = ownDirs(id);
+        const seen = (r.skillsRead || []).filter((d) => hasSddEntry(d));
+        const viaOthers = seen.filter((d) => !own.includes(d));
+        const cf = r.emit.contextFile;
+        let ctx = '';
+        if (cf) {
+          const f = r.install.contextFile && r.install.contextFile.project;
+          const has = f && fs.existsSync(f) && hasBlock(fs.readFileSync(f, 'utf8'), id);
+          ctx = ` · ${cf.name}: ${has ? 'block present' : inProject ? 'block MISSING' : '—'}`;
+        }
+        const proj = inProject ? 'installed' : viaOthers.length ? `sees skills via ${viaOthers.join(', ')}` : '—';
+        say(`  ${id.padEnd(9)} ${r.status.padEnd(13)} tool ${found === null ? 'n/a' : found ? 'found' : '—'} · project ${proj}${ctx}`);
+        const note = unverifiedNote(id);
+        if (note && (found || inProject)) warnings.push(note);
+        if (seen.length > 1 && (found || inProject))
+          warnings.push(`warning: ${r.displayName} would discover the sdd skills twice — they exist in ${seen.join(' and ')}. Keep one copy (remove the sdd* entries from the other dir).`);
+      }
+      for (const w of warnings) say(`\n${w}`);
       say(`\nproject: ${process.cwd()}`);
       say(`  openspec/            ${fs.existsSync('openspec') ? 'yes' : 'NO — run /sdd:init'}`);
       say(`  active changes       ${activeChanges().length}`);
@@ -231,6 +356,7 @@ function main() {
           say(bad.length
             ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — map your memory server with the mcp-generic backend, see core/persistence/template.md`
             : `  artifact_store       ${m[1]}`);
+          if (!bad.length) for (const n of m[1].split('+')) say(`  round-trip ${n.padEnd(11)}${probeBackend(n)}`);
         }
       } catch (e) { /* no config yet */ }
       const hook = path.join('.git', 'hooks', 'pre-commit');
@@ -248,18 +374,43 @@ function main() {
       say(`sdd-kit — Spec-Driven Development for any coding agent
 
   sdd build                          regenerate adapters/ from core/
-  sdd install claude                 print marketplace install commands
-  sdd install opencode --user|--project
-  sdd install generic --project      .sdd/core/ + AGENTS.md + commit guard
+  sdd install <agent> [--user|--project] [--dry-run]
+      agents: ${AGENT_IDS.join(' | ')}  (defined in build/manifest.json)
+      claude prints the marketplace commands; generic = .sdd/core/ + AGENTS.md
+      + commit guard (--context-file=GEMINI.md adds a second context file)
   sdd status [change]                pipeline state of active changes (no tokens)
   sdd next [change]                  next phase + exact command for this repo
-  sdd doctor                         detected tools, openspec/, guards
+  sdd doctor                         agents (verified/experimental), openspec/, backend
+                                     round-trip, guards
   sdd guard install|remove           universal git pre-commit guard`);
       return;
 
     default:
       die(`unknown command "${cmd}" — sdd help`);
   }
+}
+
+function probeBackend(name) {
+  const token = `sdd-probe-${process.pid}-${Date.now()}`;
+  if (name === 'none') return 'nothing persisted (inline only)';
+  if (name === 'openspec') {
+    if (!fs.existsSync('openspec')) return 'skipped — openspec/ not found';
+    const f = path.join('openspec', '.sdd-doctor-probe');
+    try {
+      fs.writeFileSync(f, token);
+      return fs.readFileSync(f, 'utf8') === token ? 'SAVE→LOAD ok' : 'FAILED — read back a different value';
+    } catch (e) { return `FAILED — ${e.message}`; }
+    finally { fs.rmSync(f, { force: true }); }
+  }
+  if (name === 'sqlite') {
+    const db = path.join(require('os').tmpdir(), `${token}.db`);
+    try {
+      const out = cp.execFileSync('sqlite3', [db, `create table t(k text primary key, v text); insert into t values('k','${token}'); select v from t where k='k';`], { encoding: 'utf8' });
+      return out.trim() === token ? 'SAVE→LOAD ok (scratch db)' : 'FAILED — read back a different value';
+    } catch (e) { return e.code === 'ENOENT' ? 'skipped — sqlite3 CLI not found' : `FAILED — ${e.message.split('\n')[0]}`; }
+    finally { fs.rmSync(db, { force: true }); }
+  }
+  return 'cannot be verified offline — ask your agent to SAVE then LOAD a test key';
 }
 
 function runGuard(action) {
