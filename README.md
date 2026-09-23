@@ -7,8 +7,11 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ```
 
 One canonical core of markdown contracts, generated into native adapters for
-**Claude Code, opencode, Codex, Gemini CLI** — plus a **generic floor** (AGENTS.md +
-git hook) that works with every other agent, including ones that don't exist yet.
+**Claude Code and opencode** — plus a **generic floor** (AGENTS.md + git hook +
+single-phase mode) that covers Codex, Gemini CLI and every other agent,
+including ones that don't exist yet. Native Codex and Gemini adapters are on the
+roadmap (their extension surfaces are verified; the generator just needs the
+dialect blocks).
 Artifacts are plain files under `openspec/` in your project — git-tracked,
 team-shareable, resumable. Optionally backed by Engram-style MCP memory when your
 tool has it configured.
