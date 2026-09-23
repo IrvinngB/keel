@@ -18,13 +18,13 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 - **clarify** is a mandatory gate between spec and design: it forces open questions
   and unverified assumptions to the surface BEFORE the design is written. Skipping it
   is the most common cause of full design rework.
-- **sdd-phase-blast-radius** maps every real consumer of the code about to change (call
+- **phase `sdd-blast-radius`** maps every real consumer of the code about to change (call
   sites, routes, tables, published APIs, tests) AFTER design; tasks must convert
   every must-handle line into work items.
-- Auxiliary (run anytime): `sdd-phase-stack-detector` (inside init),
-  `sdd-phase-drift` (before verify/archive), `sdd-phase-security` (inside verify or
-  standalone), `sdd-phase-estimate` (after tasks), `sdd-phase-steer` (after apply
-  batches and after archive), `sdd-phase-postmortem` (after archive — proposes
+- Auxiliary (run anytime): phase `stack-detector` (inside init),
+  phase `sdd-drift` (before verify/archive), phase `sdd-security` (inside verify or
+  standalone), phase `sdd-estimate` (after tasks), phase `sdd-steer` (after apply
+  batches and after archive), phase `sdd-postmortem` (after archive — proposes
   steering updates, never auto-applies).
 
 ## Artifact keys
@@ -83,7 +83,7 @@ Change names are kebab-case, verb-first. Reserved names: `config`, `steering`,
 ## Review workload guard
 
 - Default PR review budget: **400 changed lines** (additions + deletions).
-- `sdd-phase-tasks` MUST include these exact plain-text lines in `<change>/tasks` (downstream
+- phase `sdd-tasks` MUST include these exact plain-text lines in `<change>/tasks` (downstream
   guards match them literally):
 
 ```text
@@ -99,7 +99,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
   merges) or `size:exception` (single oversized PR, maintainer-approved — recorded
   in the guard line as `size-exception`; enum values use hyphens, the approval token
   uses a colon).
-- `sdd-phase-apply` must not start oversized work without a resolved decision; when
+- phase `sdd-apply` must not start oversized work without a resolved decision; when
   chained, implement only the assigned work unit with clear start/finish and a
   rollback boundary.
 
@@ -113,7 +113,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
   `<change>/state` with `status: archived`; a backend with directories may relocate
   the change (files backend doc). The archive is an audit trail — never delete or
   modify archived changes.
-- After archive, run `sdd-phase-steer` to refresh steering docs.
+- After archive, run phase `sdd-steer` to refresh steering docs.
 
 ## Commit guard (hook)
 
@@ -127,7 +127,7 @@ WIP commits, docs-only commits, chained-PR boundaries).
 
 - **Interactive** (default): after each phase, present the summary and ask before
   continuing.
-- **Automatic** (`/skill:sdd-ff` and friends): phases run back-to-back; clarify records
+- **Automatic** (command `ff` and friends): phases run back-to-back; clarify records
   assumptions instead of blocking. Ask-on-risk workload decisions still stop the
   pipeline — reviewer-burnout protection is never bypassed.
 
@@ -147,25 +147,25 @@ persist it, STOP, and tell the user to re-invoke for the next phase.
 explore → proposal → spec → clarify → design → blast-radius → tasks → apply → verify → archive
 ```
 
-Auxiliary anytime: `sdd-phase-estimate` (after tasks), `sdd-phase-drift` (before verify/archive),
-`sdd-phase-security` (standalone or from verify), `sdd-phase-steer` (after apply batches and
-after archive), `sdd-phase-postmortem` (after archive — its proposals to steering docs
-need explicit human approval before `sdd-phase-steer` applies them).
+Auxiliary anytime: phase `sdd-estimate` (after tasks), phase `sdd-drift` (before verify/archive),
+phase `sdd-security` (standalone or from verify), phase `sdd-steer` (after apply batches and
+after archive), phase `sdd-postmortem` (after archive — its proposals to steering docs
+need explicit human approval before phase `sdd-steer` applies them).
 
 ## What you may do
 
-- Route phases to the matching subagents: `sdd-phase-explore`,
-  `sdd-phase-propose`, `sdd-phase-spec`, `sdd-phase-clarify`,
-  `sdd-phase-design`, `sdd-phase-blast-radius`, `sdd-phase-tasks`,
-  `sdd-phase-apply`,
-  `sdd-phase-verify`, `sdd-phase-archive` (+ utilities
-  `sdd-phase-drift`, `sdd-phase-security`, `sdd-phase-estimate`,
-  `sdd-phase-steer`, `sdd-phase-postmortem`, `sdd-phase-stack-detector`).
+- Route phases to the matching subagents: phase `sdd-explore`,
+  phase `sdd-propose`, phase `sdd-spec`, phase `sdd-clarify`,
+  phase `sdd-design`, phase `sdd-blast-radius`, phase `sdd-tasks`,
+  phase `sdd-apply`,
+  phase `sdd-verify`, phase `sdd-archive` (+ utilities
+  phase `sdd-drift`, phase `sdd-security`, phase `sdd-estimate`,
+  phase `sdd-steer`, phase `sdd-postmortem`, phase `stack-detector`).
 - LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
   with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload
   decisions, ambiguous change names, archive confirmation).
-- Present phase results and suggest the next command: `/skill:sdd-continue`.
+- Present phase results and suggest the next command: command `continue`.
 
 ## What you must never do
 
@@ -205,7 +205,7 @@ decision to apply verbatim.
 
 On any new session: LOAD `config` (bootstrap location per the persistence
 interface), LIST active changes, LOAD each `<change>/state`, and offer to resume with
-`/skill:sdd-continue`. `sdd status` (the bundled CLI) shows the same without spending
+command `continue`. `sdd status` (the bundled CLI) shows the same without spending
 model tokens.
 
 ---

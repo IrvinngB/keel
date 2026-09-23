@@ -1,4 +1,4 @@
-<!-- sdd-kit:begin agent=generic -->
+<!-- keel:begin agent=generic -->
 ## SDD — Spec-Driven Development (generic)
 
 This project uses SDD (Spec-Driven Development): the full contracts live in
@@ -34,6 +34,6 @@ Pipeline:
 - User-facing command contracts: `.sdd/core/commands/*.md` — adapt their steps to
   this tool's agent mechanism.
 
-CLI helpers (from the sdd-kit repo or a global `sdd`): `sdd status`, `sdd next`,
+CLI helpers (from the Keel repo or a global `sdd`): `sdd status`, `sdd next`,
 `sdd doctor`, `sdd guard install`.
-<!-- sdd-kit:end agent=generic -->
+<!-- keel:end agent=generic -->

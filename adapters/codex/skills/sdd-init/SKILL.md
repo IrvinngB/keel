@@ -8,7 +8,7 @@ layout and contract).
 
 1. LOAD `config` (bootstrap location per the persistence interface). If it exists,
    LIST the store, report what is there and ask before updating.
-2. Launch the `sdd-phase-stack-detector` subagent to inspect the repo (pass any stack
+2. Launch the phase `stack-detector` subagent to inspect the repo (pass any stack
    override from: the user's arguments).
 3. With its profile, SAVE `config` (verify commands first) at the bootstrap
    location. The files backend also creates its empty `specs/` and
@@ -21,8 +21,8 @@ layout and contract).
    OFF). Record the answers in `config`.
 5. With the store now chosen, SAVE `steering/product`, `steering/tech` and
    `steering/structure` per the sdd-steer templates (or launch
-   `sdd-phase-steer` to generate them from scratch).
+   phase `sdd-steer` to generate them from scratch).
 6. Return a summary: detected stack, verified commands, files created, and the next
-   step: `the `sdd-new` skill <change-name>`.
+   step: `command new <change-name>`.
 
 Do not create any artifact beyond the `config` and `steering/*` bootstrap.

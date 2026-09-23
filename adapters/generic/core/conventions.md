@@ -18,10 +18,10 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 - **phase `sdd-blast-radius`** maps every real consumer of the code about to change (call
   sites, routes, tables, published APIs, tests) AFTER design; tasks must convert
   every must-handle line into work items.
-- Auxiliary (run anytime): `phase `stack-detector`` (inside init),
-  `phase `sdd-drift`` (before verify/archive), `phase `sdd-security`` (inside verify or
-  standalone), `phase `sdd-estimate`` (after tasks), `phase `sdd-steer`` (after apply
-  batches and after archive), `phase `sdd-postmortem`` (after archive — proposes
+- Auxiliary (run anytime): phase `stack-detector` (inside init),
+  phase `sdd-drift` (before verify/archive), phase `sdd-security` (inside verify or
+  standalone), phase `sdd-estimate` (after tasks), phase `sdd-steer` (after apply
+  batches and after archive), phase `sdd-postmortem` (after archive — proposes
   steering updates, never auto-applies).
 
 ## Artifact keys
@@ -80,7 +80,7 @@ Change names are kebab-case, verb-first. Reserved names: `config`, `steering`,
 ## Review workload guard
 
 - Default PR review budget: **400 changed lines** (additions + deletions).
-- `phase `sdd-tasks`` MUST include these exact plain-text lines in `<change>/tasks` (downstream
+- phase `sdd-tasks` MUST include these exact plain-text lines in `<change>/tasks` (downstream
   guards match them literally):
 
 ```text
@@ -96,7 +96,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
   merges) or `size:exception` (single oversized PR, maintainer-approved — recorded
   in the guard line as `size-exception`; enum values use hyphens, the approval token
   uses a colon).
-- `phase `sdd-apply`` must not start oversized work without a resolved decision; when
+- phase `sdd-apply` must not start oversized work without a resolved decision; when
   chained, implement only the assigned work unit with clear start/finish and a
   rollback boundary.
 
@@ -110,7 +110,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
   `<change>/state` with `status: archived`; a backend with directories may relocate
   the change (files backend doc). The archive is an audit trail — never delete or
   modify archived changes.
-- After archive, run `phase `sdd-steer`` to refresh steering docs.
+- After archive, run phase `sdd-steer` to refresh steering docs.
 
 ## Commit guard (hook)
 
@@ -124,6 +124,6 @@ WIP commits, docs-only commits, chained-PR boundaries).
 
 - **Interactive** (default): after each phase, present the summary and ask before
   continuing.
-- **Automatic** (`command `ff`` and friends): phases run back-to-back; clarify records
+- **Automatic** (command `ff` and friends): phases run back-to-back; clarify records
   assumptions instead of blocking. Ask-on-risk workload decisions still stop the
   pipeline — reviewer-burnout protection is never bypassed.

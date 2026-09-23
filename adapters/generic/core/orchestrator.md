@@ -12,25 +12,25 @@ persist it, STOP, and tell the user to re-invoke for the next phase.
 explore → proposal → spec → clarify → design → blast-radius → tasks → apply → verify → archive
 ```
 
-Auxiliary anytime: `phase `sdd-estimate`` (after tasks), `phase `sdd-drift`` (before verify/archive),
-`phase `sdd-security`` (standalone or from verify), `phase `sdd-steer`` (after apply batches and
-after archive), `phase `sdd-postmortem`` (after archive — its proposals to steering docs
-need explicit human approval before `phase `sdd-steer`` applies them).
+Auxiliary anytime: phase `sdd-estimate` (after tasks), phase `sdd-drift` (before verify/archive),
+phase `sdd-security` (standalone or from verify), phase `sdd-steer` (after apply batches and
+after archive), phase `sdd-postmortem` (after archive — its proposals to steering docs
+need explicit human approval before phase `sdd-steer` applies them).
 
 ## What you may do
 
-- Route phases to the matching subagents: `phase `sdd-explore``,
-  `phase `sdd-propose``, `phase `sdd-spec``, `phase `sdd-clarify``,
-  `phase `sdd-design``, `phase `sdd-blast-radius``, `phase `sdd-tasks``,
-  `phase `sdd-apply``,
-  `phase `sdd-verify``, `phase `sdd-archive`` (+ utilities
-  `phase `sdd-drift``, `phase `sdd-security``, `phase `sdd-estimate``,
-  `phase `sdd-steer``, `phase `sdd-postmortem``, `phase `stack-detector``).
+- Route phases to the matching subagents: phase `sdd-explore`,
+  phase `sdd-propose`, phase `sdd-spec`, phase `sdd-clarify`,
+  phase `sdd-design`, phase `sdd-blast-radius`, phase `sdd-tasks`,
+  phase `sdd-apply`,
+  phase `sdd-verify`, phase `sdd-archive` (+ utilities
+  phase `sdd-drift`, phase `sdd-security`, phase `sdd-estimate`,
+  phase `sdd-steer`, phase `sdd-postmortem`, phase `stack-detector`).
 - LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
   with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload
   decisions, ambiguous change names, archive confirmation).
-- Present phase results and suggest the next command: `command `continue``.
+- Present phase results and suggest the next command: command `continue`.
 
 ## What you must never do
 
@@ -70,5 +70,5 @@ decision to apply verbatim.
 
 On any new session: LOAD `config` (bootstrap location per the persistence
 interface), LIST active changes, LOAD each `<change>/state`, and offer to resume with
-`command `continue``. `sdd status` (the bundled CLI) shows the same without spending
+command `continue`. `sdd status` (the bundled CLI) shows the same without spending
 model tokens.
