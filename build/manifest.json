@@ -15,6 +15,382 @@
   "orchestrator": {
     "description": "SDD pipeline orchestrator: routes phases to sdd subagents, owns the change state and the workload guard. Use as the primary agent for any Spec-Driven Development work."
   },
+  "registry": {
+    "claude": {
+      "displayName": "Claude Code",
+      "status": "verified",
+      "unverifiedFields": [
+        "agentsFileLayout"
+      ],
+      "notes": "Native plugin. Docs confirm plugin skills/commands are namespaced <plugin>:<name>, commands/ files still work, and skills live in .claude/skills. The agents/<name>.md file layout comes from the previous release and was not re-checked against the docs.",
+      "detect": [
+        "~/.claude"
+      ],
+      "projectMarkers": [
+        ".claude",
+        "CLAUDE.md"
+      ],
+      "invoke": {
+        "cmd": "/sdd:{name}",
+        "agent": "sdd:{name}",
+        "skill": "sdd:{name}"
+      },
+      "skillsRead": [
+        ".claude/skills"
+      ],
+      "args": "$ARGUMENTS",
+      "hooks": true,
+      "emit": {
+        "plugin": true,
+        "hooks": true,
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "subagent",
+          "format": "claude-agent",
+          "dir": "agents"
+        },
+        "commands": {
+          "as": "command",
+          "format": "claude-command",
+          "dir": "commands"
+        }
+      },
+      "install": {
+        "method": "plugin",
+        "pluginCommands": [
+          "/plugin marketplace add IrvinngB/sdd-kit",
+          "/plugin install sdd@sdd-kit"
+        ]
+      }
+    },
+    "opencode": {
+      "displayName": "opencode",
+      "status": "verified",
+      "unverifiedFields": [
+        "agentDir",
+        "commandDir"
+      ],
+      "notes": "Docs confirm skills in .opencode/skills, .claude/skills and .agents/skills (global: ~/.config/opencode/skills) with a native skill tool. The agent/ and command/ dirs come from the previous release and were not re-checked against the docs.",
+      "detect": [
+        "~/.config/opencode"
+      ],
+      "projectMarkers": [
+        ".opencode"
+      ],
+      "invoke": {
+        "cmd": "/sdd-{name}",
+        "agent": "{name}",
+        "skill": "{name}"
+      },
+      "skillsRead": [
+        ".opencode/skills",
+        ".claude/skills",
+        ".agents/skills"
+      ],
+      "args": "$ARGUMENTS",
+      "hooks": false,
+      "emit": {
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "subagent",
+          "format": "opencode-agent",
+          "dir": "agent"
+        },
+        "commands": {
+          "as": "command",
+          "format": "opencode-command",
+          "dir": "command"
+        },
+        "orchestrator": {
+          "dir": "agent",
+          "file": "sdd-orchestrator.md"
+        }
+      },
+      "install": {
+        "method": "copy",
+        "project": {
+          "root": ".",
+          "map": [
+            {
+              "from": "agent",
+              "to": ".opencode/agent"
+            },
+            {
+              "from": "command",
+              "to": ".opencode/command"
+            },
+            {
+              "from": "skills",
+              "to": ".opencode/skills"
+            }
+          ]
+        },
+        "user": {
+          "root": "~",
+          "map": [
+            {
+              "from": "agent",
+              "to": ".config/opencode/agent"
+            },
+            {
+              "from": "command",
+              "to": ".config/opencode/command"
+            },
+            {
+              "from": "skills",
+              "to": ".config/opencode/skills"
+            }
+          ]
+        }
+      }
+    },
+    "codex": {
+      "displayName": "Codex CLI",
+      "status": "verified",
+      "unverifiedFields": [
+        "subagents"
+      ],
+      "notes": "Docs confirm skills in .agents/skills (repo) and ~/.agents/skills (user), invoked as $skill-name, and AGENTS.md read by default (global ~/.codex/AGENTS.md). Commands are emitted as skills; whether custom prompts are deprecated was not confirmed. opencode, Kimi and Gemini also read .agents/skills, so the skills written there are invocation-neutral (they name skills, never a `$`/`/` syntax); the Codex-specific invocation hint lives only in the AGENTS.md block.",
+      "detect": [
+        "~/.codex"
+      ],
+      "projectMarkers": [],
+      "invoke": {
+        "cmd": "$sdd-{name}",
+        "agent": "sdd-phase-{short}",
+        "skill": "{name}"
+      },
+      "invokeNeutral": {
+        "cmd": "the `sdd-{name}` skill",
+        "agent": "sdd-phase-{short}",
+        "skill": "{name}"
+      },
+      "sharedSkillsDir": ".agents/skills",
+      "skillsRead": [
+        ".agents/skills"
+      ],
+      "args": "the user's arguments",
+      "hooks": false,
+      "emit": {
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-phase-{short}"
+        },
+        "commands": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-{name}"
+        },
+        "contextFile": {
+          "name": "AGENTS.md",
+          "block": "skills",
+          "blockFile": "AGENTS.block.md"
+        }
+      },
+      "install": {
+        "method": "copy",
+        "project": {
+          "root": ".",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".agents/skills"
+            }
+          ]
+        },
+        "user": {
+          "root": "~",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".agents/skills"
+            }
+          ]
+        },
+        "contextFile": {
+          "project": "AGENTS.md",
+          "user": "~/.codex/AGENTS.md"
+        }
+      }
+    },
+    "gemini": {
+      "displayName": "Gemini CLI",
+      "status": "verified",
+      "unverifiedFields": [
+        "subagents",
+        "userContextFile"
+      ],
+      "notes": "Docs confirm GEMINI.md is the default context file (AGENTS.md is only read if listed in context.fileName), custom commands as TOML in .gemini/commands with {{args}} and subdirectory namespacing (sdd/<name>.toml -> /sdd:<name>), and skills in .gemini/skills or ~/.gemini/skills (.agents/skills alias). The user-level GEMINI.md path and subagent support were not verified.",
+      "detect": [
+        "~/.gemini"
+      ],
+      "projectMarkers": [
+        ".gemini",
+        "GEMINI.md"
+      ],
+      "invoke": {
+        "cmd": "/sdd:{name}",
+        "agent": "sdd-phase-{short}",
+        "skill": "{name}"
+      },
+      "skillsRead": [
+        ".gemini/skills",
+        ".agents/skills"
+      ],
+      "args": "{{args}}",
+      "hooks": false,
+      "emit": {
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-phase-{short}"
+        },
+        "commands": {
+          "as": "command",
+          "format": "toml",
+          "dir": "commands/sdd",
+          "ext": ".toml"
+        },
+        "contextFile": {
+          "name": "GEMINI.md",
+          "block": "skills",
+          "blockFile": "GEMINI.block.md"
+        }
+      },
+      "install": {
+        "method": "copy",
+        "project": {
+          "root": ".",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".gemini/skills"
+            },
+            {
+              "from": "commands",
+              "to": ".gemini/commands"
+            }
+          ]
+        },
+        "user": {
+          "root": "~",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".gemini/skills"
+            },
+            {
+              "from": "commands",
+              "to": ".gemini/commands"
+            }
+          ]
+        },
+        "contextFile": {
+          "project": "GEMINI.md",
+          "user": null
+        }
+      }
+    },
+    "kimi": {
+      "displayName": "Kimi Code CLI",
+      "status": "experimental",
+      "unverifiedFields": [
+        "contextFile",
+        "commands",
+        "subagents"
+      ],
+      "notes": "Docs confirm skills in .kimi/skills (also .claude/skills, .codex/skills, .agents/skills) and ~/.kimi/skills, invoked as /skill:<name>, flat .md skills allowed. That AGENTS.md is read as the project context file is inferred, not confirmed; no custom-command mechanism was verified, so commands are emitted as skills.",
+      "detect": [
+        "~/.kimi"
+      ],
+      "projectMarkers": [
+        ".kimi"
+      ],
+      "invoke": {
+        "cmd": "/skill:sdd-{name}",
+        "agent": "sdd-phase-{short}",
+        "skill": "{name}"
+      },
+      "skillsRead": [
+        ".kimi/skills",
+        ".claude/skills",
+        ".codex/skills",
+        ".agents/skills"
+      ],
+      "args": "the user's arguments",
+      "hooks": false,
+      "emit": {
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-phase-{short}"
+        },
+        "commands": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-{name}"
+        },
+        "contextFile": {
+          "name": "AGENTS.md",
+          "block": "skills",
+          "blockFile": "AGENTS.block.md"
+        }
+      },
+      "install": {
+        "method": "copy",
+        "project": {
+          "root": ".",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".kimi/skills"
+            }
+          ]
+        },
+        "user": {
+          "root": "~",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".kimi/skills"
+            }
+          ]
+        },
+        "contextFile": {
+          "project": "AGENTS.md",
+          "user": null
+        }
+      }
+    },
+    "generic": {
+      "displayName": "Generic (any AGENTS.md agent)",
+      "status": "verified",
+      "unverifiedFields": [],
+      "notes": "Floor for every other agent: resolved core copy in .sdd/core, an AGENTS.md block, the git pre-commit guard and single-phase mode. Nothing here depends on an agent-specific extension surface. For agents that read another context file (for example GEMINI.md) use --context-file=<name>.",
+      "detect": [],
+      "projectMarkers": [
+        ".sdd",
+        "AGENTS.md"
+      ],
+      "invoke": {
+        "cmd": "command `{name}`",
+        "agent": "phase `{name}`",
+        "skill": "this document"
+      },
+      "args": "the user's arguments",
+      "hooks": false,
+      "emit": {
+        "floor": true
+      },
+      "install": {
+        "method": "floor"
+      }
+    }
+  },
   "agents": {
     "sdd-explore": {
       "description": "Explore and investigate ideas before committing to a change. Use when asked to think through a feature, investigate a codebase, map modules, compare approaches, or clarify requirements — before any proposal or spec is written. Research only; the only artifact it may write is the change's explore key.",

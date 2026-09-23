@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-// sdd-kit generator: core/ (canonical, tool-agnostic markdown) -> adapters/{claude,opencode,generic}
+// sdd-kit generator: core/ (canonical, tool-agnostic markdown) + manifest.registry -> adapters/<agent>/
+// Agents are DATA (build/manifest.json "registry"); SKILL.md is the base output format.
 // Zero dependencies. Run: node build/generate.js
 
 const fs = require('fs');
@@ -10,32 +11,31 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const CORE = path.join(ROOT, 'core');
 const ADAPTERS = path.join(ROOT, 'adapters');
+const BUILD = path.join(ROOT, 'adapters.build');
+const OLD = path.join(ROOT, 'adapters.old');
 const HOOKS_SRC = path.join(ROOT, 'hooks');
+const TEMPLATES = path.join(__dirname, 'templates');
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf8'));
+const REGISTRY = manifest.registry;
 
 const PLACEHOLDER = /\{\{(agent|cmd|skill):([a-z0-9-]+)\}\}/g;
+const PLACEHOLDER_TEST = /\{\{(agent|cmd|skill):([a-z0-9-]+)\}\}/;
+const SKILL_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-const DIALECTS = {
-  claude: {
-    agent: (n) => `sdd:${n}`,
-    cmd: (n) => `/sdd:${n}`,
-    skill: (n) => `sdd:${n}`,
-  },
-  opencode: {
-    agent: (n) => n,
-    cmd: (n) => `/sdd-${n}`,
-    skill: (n) => n,
-  },
-  generic: {
-    agent: (n) => `phase \`${n}\``,
-    cmd: (n) => `command \`${n}\``,
-    skill: () => `this document`,
-  },
-};
+function fill(tpl, name) {
+  return tpl
+    .replace(/\{name\}/g, () => name)
+    .replace(/\{short\}/g, () => name.replace(/^sdd-/, ''));
+}
 
-function resolve(text, dialect) {
-  const d = DIALECTS[dialect];
-  return text.replace(PLACEHOLDER, (_, kind, name) => d[kind](name));
+// neutral=true: skills written to a directory other agents also read must not embed
+// this agent's invocation syntax, so registry.invokeNeutral replaces registry.invoke.
+function resolve(text, id, neutral = false) {
+  const r = REGISTRY[id];
+  const invoke = neutral && r.invokeNeutral ? r.invokeNeutral : r.invoke;
+  return text
+    .replace(PLACEHOLDER, (_, kind, name) => fill(invoke[kind], name))
+    .replace(/\$ARGUMENTS/g, () => r.args);
 }
 
 function read(p) {
@@ -43,15 +43,34 @@ function read(p) {
   return fs.readFileSync(p, 'utf8');
 }
 
+const REMOVABLE = new Set(['adapters', 'adapters.build', 'adapters.old']);
+
+// A path may be removed only if it really resolves to <ROOT>/<expected name>;
+// a symlink pointing elsewhere (or a renamed target) is refused.
+function isRemovable(p) {
+  if (!REMOVABLE.has(path.basename(p))) return false;
+  let real;
+  try { real = fs.realpathSync(p); } catch (e) { return true; }
+  return path.dirname(real) === fs.realpathSync(ROOT) && REMOVABLE.has(path.basename(real));
+}
+
+function removeGenerated(p) {
+  if (!isRemovable(p)) fail(`refusing to remove ${p}: not a generated directory inside the repo`);
+  fs.rmSync(p, { recursive: true, force: true });
+}
+
 function fail(msg) {
   console.error(`generate: ERROR: ${msg}`);
+  try { if (isRemovable(BUILD)) fs.rmSync(BUILD, { recursive: true, force: true }); } catch (e) { /* best effort */ }
   process.exit(1);
 }
+
+let created = [];
 
 function write(p, content, mode) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, content, mode === undefined ? {} : { mode });
-  created.push(path.relative(ROOT, p));
+  created.push(path.relative(BUILD, p));
 }
 
 function copyFile(src, dst, mode) {
@@ -59,7 +78,7 @@ function copyFile(src, dst, mode) {
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.copyFileSync(src, dst);
   if (mode !== undefined) fs.chmodSync(dst, mode);
-  created.push(path.relative(ROOT, dst));
+  created.push(path.relative(BUILD, dst));
 }
 
 function yamlStr(s) {
@@ -89,12 +108,98 @@ function listFiles(dir, re) {
     .sort();
 }
 
-let created = [];
+function skillDoc(name, description, body) {
+  if (!SKILL_NAME_RE.test(name) || name.length > 64) fail(`invalid skill name "${name}"`);
+  if (description.length > 1024) fail(`skill "${name}" description exceeds 1024 characters`);
+  return frontmatter([['name', name], ['description', yamlStr(description)]]) + body;
+}
 
-// persistence docs are bundled dynamically: any file added to core/persistence/
-// ships in every skill body without touching this generator.
+function tomlString(s) {
+  if (!s.includes("'''")) return `'''\n${s}'''`;
+  return `"""\n${s.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"')}"""`;
+}
+
+const PHASE_FORMATS = {
+  'claude-agent': ({ f, spec, name, body }) => ({
+    file: f,
+    content:
+      frontmatter([
+        ['name', name],
+        ['description', yamlStr(useTriggerFirst(spec.description))],
+        ['model', 'inherit'],
+        ['tools', spec.tools.join(', ')],
+      ]) + body,
+  }),
+  'opencode-agent': ({ f, spec, body }) => {
+    const has = (t) => (spec.tools.includes(t) ? 'true' : 'false');
+    return {
+      file: f,
+      content:
+        '---\n' +
+        `description: ${yamlStr(useTriggerFirst(spec.description))}\n` +
+        'mode: subagent\n' +
+        'temperature: 0.2\n' +
+        'tools:\n' +
+        `  write: ${has('Write')}\n` +
+        `  edit: ${has('Edit')}\n` +
+        `  bash: ${has('Bash')}\n` +
+        '---\n\n' +
+        body,
+    };
+  },
+};
+
+const COMMAND_FORMATS = {
+  'claude-command': ({ name, spec, body }) => {
+    const pairs = [['description', yamlStr(spec.description)]];
+    if (/\$ARGUMENTS/.test(body)) pairs.push(['argument-hint', yamlStr(spec.argumentHint)]);
+    return { file: `${name}.md`, content: frontmatter(pairs) + body };
+  },
+  'opencode-command': ({ name, spec, body }) => ({
+    file: `sdd-${name}.md`,
+    content: frontmatter([['description', yamlStr(spec.description)], ['agent', 'sdd-orchestrator']]) + body,
+  }),
+  toml: ({ name, spec, body }) => {
+    if (/[!@]\{/.test(body)) fail(`command "${name}" contains a !{ or @{ token that TOML commands would execute`);
+    return {
+      file: `${name}.toml`,
+      content: `description = ${JSON.stringify(spec.description)}\nprompt = ${tomlString(body)}\n`,
+    };
+  },
+};
+
+function validateRegistry() {
+  if (!REGISTRY || typeof REGISTRY !== 'object') fail('manifest.registry is missing');
+  for (const [id, r] of Object.entries(REGISTRY)) {
+    for (const k of ['displayName', 'status', 'invoke', 'args', 'emit', 'install'])
+      if (r[k] === undefined) fail(`registry.${id} is missing "${k}"`);
+    if (!['verified', 'experimental'].includes(r.status)) fail(`registry.${id}.status must be verified|experimental`);
+    for (const k of ['cmd', 'agent', 'skill'])
+      if (typeof r.invoke[k] !== 'string') fail(`registry.${id}.invoke.${k} must be a string`);
+    const e = r.emit;
+    if (e.floor) continue;
+    if (!e.workflowSkill) fail(`registry.${id}.emit.workflowSkill is required`);
+    if (!e.phases || !e.commands) fail(`registry.${id}.emit needs phases and commands`);
+    if (e.phases.as === 'subagent') {
+      if (!PHASE_FORMATS[e.phases.format]) fail(`registry.${id}.emit.phases.format "${e.phases.format}" is unknown`);
+    } else if (e.phases.as !== 'skill') fail(`registry.${id}.emit.phases.as must be subagent|skill`);
+    if (e.commands.as === 'command') {
+      if (!COMMAND_FORMATS[e.commands.format]) fail(`registry.${id}.emit.commands.format "${e.commands.format}" is unknown`);
+    } else if (e.commands.as !== 'skill') fail(`registry.${id}.emit.commands.as must be command|skill`);
+    if ((e.phases.as === 'skill' || e.commands.as === 'skill') && !r.install.project && !r.install.user)
+      fail(`registry.${id} emits skills but declares no install target`);
+    if (r.skillsRead !== undefined && !Array.isArray(r.skillsRead)) fail(`registry.${id}.skillsRead must be an array`);
+    if (r.sharedSkillsDir) {
+      if (!r.invokeNeutral) fail(`registry.${id} writes a shared skills dir and needs invokeNeutral`);
+      for (const k of ['cmd', 'agent', 'skill'])
+        if (typeof r.invokeNeutral[k] !== 'string') fail(`registry.${id}.invokeNeutral.${k} must be a string`);
+      if (!(r.skillsRead || []).includes(r.sharedSkillsDir)) fail(`registry.${id}.skillsRead must include its sharedSkillsDir`);
+    }
+  }
+}
 
 function generate() {
+  validateRegistry();
   const phaseFiles = listFiles(path.join(CORE, 'phases'), /\.md$/);
   const commandFiles = listFiles(path.join(CORE, 'commands'), /\.md$/);
   if (phaseFiles.length !== 16) fail(`expected 16 files in core/phases, found ${phaseFiles.length}`);
@@ -112,113 +217,138 @@ function generate() {
       fail(`hooks/${h} is missing at repo root — restore it before generating adapters/claude (stop and report)`);
   }
 
-  const orchestrator = read(path.join(CORE, 'orchestrator.md'));
-  const conventions = read(path.join(CORE, 'conventions.md'));
-  const persistence = listFiles(path.join(CORE, 'persistence'), /\.md$/)
-    .map((f) => read(path.join(CORE, 'persistence', f)));
-  if (!persistence.length) fail('no docs under core/persistence/');
+  const ctx = {
+    phaseFiles,
+    commandFiles,
+    orchestrator: read(path.join(CORE, 'orchestrator.md')),
+    conventions: read(path.join(CORE, 'conventions.md')),
+    persistence: listFiles(path.join(CORE, 'persistence'), /\.md$/).map((f) => read(path.join(CORE, 'persistence', f))),
+    skillsBlock: read(path.join(TEMPLATES, 'skills-block.md')),
+  };
+  if (!ctx.persistence.length) fail('no docs under core/persistence/');
 
-  generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, persistence });
-  generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions, persistence });
-  generateGeneric();
-  verify();
+  removeGenerated(BUILD);
+  removeGenerated(OLD);
+  for (const id of Object.keys(REGISTRY)) emitAgent(id, ctx);
+  const total = verify();
+  swapIn();
+  console.log(`generate: OK — ${total} files under adapters/, 0 unresolved placeholders`);
 }
 
-function skillBody(dialect, { conventions, orchestrator, persistence }) {
+// adapters -> adapters.old, build -> adapters, then drop the old tree; any failure
+// puts the previous adapters back instead of leaving the repo without them.
+function swapIn() {
+  const hadAdapters = fs.existsSync(ADAPTERS);
+  if (hadAdapters) {
+    if (!isRemovable(ADAPTERS)) fail('refusing to replace adapters/: it does not resolve to a directory inside the repo');
+    fs.renameSync(ADAPTERS, OLD);
+  }
+  try {
+    fs.renameSync(BUILD, ADAPTERS);
+  } catch (e) {
+    if (hadAdapters) {
+      try { fs.renameSync(OLD, ADAPTERS); } catch (e2) { console.error(`generate: could not restore adapters/ from ${OLD}: ${e2.message}`); }
+    }
+    fail(`could not swap in the new adapters (${e.message}); previous adapters/ restored`);
+  }
+  if (hadAdapters) removeGenerated(OLD);
+}
+
+// persistence docs are bundled dynamically: any file added to core/persistence/
+// ships in every workflow skill without touching this generator.
+function skillBody(id, { conventions, orchestrator, persistence }, neutral) {
   return resolve(
     [conventions.trim(), '\n\n---\n\n', orchestrator.trim(), '\n\n---\n\n',
      ...persistence.map((doc) => doc.trim() + '\n\n---\n\n')].join('')
       .replace(/\n---\n\n$/, '\n'),
-    dialect
+    id,
+    neutral
   );
 }
 
-function generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, persistence }) {
-  const out = path.join(ADAPTERS, 'claude');
-
-  write(path.join(out, '.claude-plugin', 'plugin.json'), JSON.stringify(manifest.plugin, null, 2) + '\n');
-
-  for (const f of phaseFiles) {
-    const name = f.replace(/\.md$/, '');
-    const spec = manifest.agents[name];
-    const body = resolve(read(path.join(CORE, 'phases', f)), 'claude');
-    const fm = frontmatter([
-      ['name', name],
-      ['description', yamlStr(useTriggerFirst(spec.description))],
-      ['model', 'inherit'],
-      ['tools', spec.tools.join(', ')],
-    ]);
-    write(path.join(out, 'agents', f), fm + body);
-  }
-
-  for (const f of commandFiles) {
-    const name = f.replace(/\.md$/, '');
-    const spec = manifest.commands[name];
-    const body = resolve(read(path.join(CORE, 'commands', f)), 'claude');
-    const pairs = [['description', yamlStr(spec.description)]];
-    if (/\$ARGUMENTS/.test(body)) pairs.push(['argument-hint', yamlStr(spec.argumentHint)]);
-    write(path.join(out, 'commands', f), frontmatter(pairs) + body);
-  }
-
-  const skillFm = frontmatter([
-    ['name', manifest.skill.name],
-    ['description', yamlStr(manifest.skill.description)],
-  ]);
-  write(path.join(out, 'skills', 'sdd-workflow', 'SKILL.md'), skillFm + skillBody('claude', { conventions, orchestrator, persistence }));
-
-  copyFile(path.join(HOOKS_SRC, 'hooks.json'), path.join(out, 'hooks', 'hooks.json'));
-  copyFile(path.join(HOOKS_SRC, 'tasks-guard.sh'), path.join(out, 'hooks', 'tasks-guard.sh'), 0o755);
+// One marked region per agent so several agents can share a context file (AGENTS.md)
+// and `sdd install` can replace exactly its own region on re-runs.
+function agentBlock(id, body) {
+  return `<!-- sdd-kit:begin agent=${id} -->\n${body.trim()}\n<!-- sdd-kit:end agent=${id} -->\n`;
 }
 
-function generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions, persistence }) {
-  const out = path.join(ADAPTERS, 'opencode');
+function emitAgent(id, ctx) {
+  const r = REGISTRY[id];
+  const e = r.emit;
+  const out = path.join(BUILD, id);
+  if (e.floor) return emitGeneric(out);
 
-  for (const f of phaseFiles) {
+  if (e.plugin) write(path.join(out, '.claude-plugin', 'plugin.json'), JSON.stringify(manifest.plugin, null, 2) + '\n');
+
+  const skillNames = new Set();
+  const claimSkill = (name) => {
+    if (skillNames.has(name)) fail(`registry.${id}: two outputs share the skill name "${name}"`);
+    skillNames.add(name);
+  };
+  const neutral = Boolean(r.sharedSkillsDir);
+
+  write(
+    path.join(out, e.workflowSkill, 'SKILL.md'),
+    skillDoc(manifest.skill.name, manifest.skill.description, skillBody(id, ctx, neutral))
+  );
+  claimSkill(manifest.skill.name);
+
+  for (const f of ctx.phaseFiles) {
     const name = f.replace(/\.md$/, '');
     const spec = manifest.agents[name];
-    const has = (t) => (spec.tools.includes(t) ? 'true' : 'false');
-    const body = resolve(read(path.join(CORE, 'phases', f)), 'opencode');
-    const fm =
+    const raw = read(path.join(CORE, 'phases', f));
+    if (e.phases.as === 'subagent') {
+      const { file, content } = PHASE_FORMATS[e.phases.format]({ f, name, spec, body: resolve(raw, id) });
+      write(path.join(out, e.phases.dir, file), content);
+    } else {
+      const skillName = fill(e.phases.name, name);
+      claimSkill(skillName);
+      write(
+        path.join(out, e.phases.dir, skillName, 'SKILL.md'),
+        skillDoc(skillName, useTriggerFirst(spec.description), resolve(raw, id, neutral))
+      );
+    }
+  }
+
+  if (e.orchestrator) {
+    const orchFm =
       '---\n' +
-      `description: ${yamlStr(useTriggerFirst(spec.description))}\n` +
-      'mode: subagent\n' +
+      `description: ${yamlStr(manifest.orchestrator.description)}\n` +
+      'mode: primary\n' +
       'temperature: 0.2\n' +
-      'tools:\n' +
-      `  write: ${has('Write')}\n` +
-      `  edit: ${has('Edit')}\n` +
-      `  bash: ${has('Bash')}\n` +
       '---\n\n';
-    write(path.join(out, 'agent', f), fm + body);
+    write(path.join(out, e.orchestrator.dir, e.orchestrator.file), orchFm + resolve(ctx.orchestrator, id));
   }
 
-  const orchFm =
-    '---\n' +
-    `description: ${yamlStr(manifest.orchestrator.description)}\n` +
-    'mode: primary\n' +
-    'temperature: 0.2\n' +
-    '---\n\n';
-  write(path.join(out, 'agent', 'sdd-orchestrator.md'), orchFm + resolve(orchestrator, 'opencode'));
-
-  for (const f of commandFiles) {
+  for (const f of ctx.commandFiles) {
     const name = f.replace(/\.md$/, '');
     const spec = manifest.commands[name];
-    const body = resolve(read(path.join(CORE, 'commands', f)), 'opencode');
-    const fm = frontmatter([
-      ['description', yamlStr(spec.description)],
-      ['agent', 'sdd-orchestrator'],
-    ]);
-    write(path.join(out, 'command', `sdd-${name}.md`), fm + body);
+    const raw = read(path.join(CORE, 'commands', f));
+    if (e.commands.as === 'command') {
+      const { file, content } = COMMAND_FORMATS[e.commands.format]({ name, spec, body: resolve(raw, id) });
+      write(path.join(out, e.commands.dir, file), content);
+    } else {
+      const skillName = fill(e.commands.name, name);
+      claimSkill(skillName);
+      write(
+        path.join(out, e.commands.dir, skillName, 'SKILL.md'),
+        skillDoc(skillName, `${spec.description} (arguments: ${spec.argumentHint}).`, resolve(raw, id, neutral))
+      );
+    }
   }
 
-  const skillFm = frontmatter([
-    ['name', manifest.skill.name],
-    ['description', yamlStr(manifest.skill.description)],
-  ]);
-  write(path.join(out, 'skills', 'sdd-workflow', 'SKILL.md'), skillFm + skillBody('opencode', { conventions, orchestrator, persistence }));
+  if (e.hooks) {
+    copyFile(path.join(HOOKS_SRC, 'hooks.json'), path.join(out, 'hooks', 'hooks.json'));
+    copyFile(path.join(HOOKS_SRC, 'tasks-guard.sh'), path.join(out, 'hooks', 'tasks-guard.sh'), 0o755);
+  }
+
+  if (e.contextFile) {
+    const body = resolve(ctx.skillsBlock, id).replace(/\{displayName\}/g, () => r.displayName);
+    write(path.join(out, e.contextFile.blockFile), agentBlock(id, body));
+  }
 }
 
-const AGENTS_BLOCK = `<!-- sdd-kit generic block v2 -->
-## SDD — Spec-Driven Development
+const AGENTS_BLOCK = `## SDD — Spec-Driven Development (generic)
 
 This project uses SDD (Spec-Driven Development): the full contracts live in
 \`.sdd/core/\` (\`orchestrator.md\`, \`conventions.md\`, \`phases/\`, \`commands/\`,
@@ -263,16 +393,19 @@ const README_INSTALL = `# Generic install (any coding agent)
    placeholders) into your project as \`.sdd/core/\` (layout: \`orchestrator.md\`,
    \`conventions.md\`, \`phases/\`, \`commands/\`, \`persistence/\`).
 2. Append \`AGENTS.block.md\` (this folder) to your project's \`AGENTS.md\` — create
-   the file if absent; skip if the \`sdd-kit generic block\` marker is already there.
+   the file if absent. The block is wrapped in \`sdd-kit:begin/end agent=generic\`
+   markers; if they are already there, replace that region instead of appending.
+   Agents that read another context file (for example \`GEMINI.md\`) need the same
+   block appended there.
 3. Run \`sdd guard install\` in the project to install the commit guard
    (\`.git/hooks/pre-commit\` blocks commits while active changes have unchecked tasks).
 
-Or do all three at once from a clone of sdd-kit: \`sdd install generic --project\`.
+Or do all three at once from a clone of sdd-kit: \`sdd install generic --project\`
+(add \`--context-file=GEMINI.md\` for a second context file).
 Then tell your agent to read \`.sdd/core/orchestrator.md\` and start the pipeline.
 `;
 
-function generateGeneric() {
-  const out = path.join(ADAPTERS, 'generic');
+function emitGeneric(out) {
   // resolved core copy — the generic floor must never see raw placeholders
   const copyCore = (srcDir, dstDir) => {
     for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
@@ -283,7 +416,7 @@ function generateGeneric() {
     }
   };
   copyCore(CORE, path.join(out, 'core'));
-  write(path.join(out, 'AGENTS.block.md'), AGENTS_BLOCK);
+  write(path.join(out, 'AGENTS.block.md'), agentBlock('generic', AGENTS_BLOCK));
   write(path.join(out, 'README.install.md'), README_INSTALL);
 }
 
@@ -297,14 +430,14 @@ function walk(dir, acc) {
 }
 
 function verify() {
-  const files = walk(ADAPTERS, []);
+  const files = walk(BUILD, []);
   const bad = [];
   for (const f of files) {
-    if (PLACEHOLDER.test(read(f))) bad.push(path.relative(ROOT, f));
+    if (PLACEHOLDER_TEST.test(read(f))) bad.push(path.relative(BUILD, f));
   }
   if (bad.length) fail(`unresolved placeholders in: ${bad.join(', ')}`);
-  console.log(`generate: OK — ${files.length} files under adapters/, 0 unresolved placeholders`);
+  return files.length;
 }
 
 generate();
-for (const c of created.sort()) console.log(`  wrote ${c}`);
+for (const c of created.sort()) console.log(`  wrote adapters/${c}`);
