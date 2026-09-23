@@ -1,6 +1,17 @@
 # Persistence backend: openspec (files)
 
-Canonical backend. Everything lives in the user project, git-tracked, shareable.
+Canonical backend, always available. Everything lives in the user project,
+git-tracked, team-shareable, versioned by git itself.
+
+## Operations
+
+```
+SAVE(key, content): write to the mapped path (mkdir -p parents); read-before-write applies
+LOAD(key):          read the mapped file — full content by definition
+LIST(prefix):       ls openspec/changes/<change>/ (+ find for specs)
+```
+
+## Mapping
 
 | Logical artifact | Path |
 |------------------|------|

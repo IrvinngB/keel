@@ -20,8 +20,11 @@ layout and contract).
    ```
 4. Write the three steering docs per the sdd-steer templates (or launch
    `sdd:sdd-steer` to generate them from scratch).
-5. Ask the user two setup questions (one at a time): Strict TDD on/off (default:
-   ON if a test runner was verified), security_review on/off (default: OFF).
+5. Ask the user setup questions (one at a time): artifact store (default:
+   `openspec`; offer any backend doc from the bundled persistence folder — files,
+   Engram, SQLite, mapped MCP server, or `+` combinations), Strict TDD on/off
+   (default: ON if a test runner was verified), security_review on/off (default:
+   OFF).
 6. Return a summary: detected stack, verified commands, files created, and the next
    step: `/sdd:new <change-name>`.
 

@@ -28,8 +28,9 @@ Pipeline:
 - Never bypass the workload guard in `tasks.md` (chained PRs / size exception).
 - Commit guard: `.git/hooks/pre-commit` enforces unchecked tasks
   (`sdd guard install`); bypass deliberately with `SDD_ALLOW_COMMIT=1`.
-- Persistence routing: `.sdd/core/persistence/openspec.md` (files, default) and
-  `.sdd/core/persistence/engram.md` (MCP, optional; `hybrid` writes both).
+- Persistence routing: `.sdd/core/persistence/interface.md` defines SAVE/LOAD/LIST;
+  pick a backend doc (files, Engram, SQLite, any mapped MCP server, or `+`
+  combinations) via `artifact_store` in `openspec/config.yaml`.
 - User-facing command contracts: `.sdd/core/commands/*.md` — adapt their steps to
   this tool's agent mechanism.
 

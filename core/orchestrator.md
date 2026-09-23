@@ -46,16 +46,16 @@ need explicit human approval before `{{agent:sdd-steer}}` applies them).
 |---------|---------|---------|
 | execution mode | interactive \| automatic | interactive |
 | delivery strategy | ask-on-risk \| auto-chain \| single-pr \| exception-ok | ask-on-risk |
-| artifact store | engram \| openspec \| hybrid \| none | read `openspec/config.yaml`; if unset, ask once |
+| artifact store | any registered backend or `+` combination; `none` | read `openspec/config.yaml`; if unset, ask once |
 
 ## Persistence routing
 
-Both persistence contracts (openspec files / Engram MCP) ship with this workflow —
-they are part of this same document (plugin installs) or of
-`.sdd/core/persistence/` (generic install). Every artifact has ONE logical
-identity (`<change>/<type>`) mapped to both backends; the `artifact_store` key in
-`openspec/config.yaml` selects where phases read/write. `hybrid` writes both,
-reads Engram first.
+Phases speak only the abstract operations SAVE / LOAD / LIST defined in the
+persistence interface (bundled with this workflow — same document in plugin
+installs, `.sdd/core/persistence/` in generic installs). `openspec/config.yaml`
+→ `artifact_store` selects the backend doc (files, Engram, SQLite, any mapped
+MCP server, or a `+` combination: write ALL, read in listed order). Adding a
+backend never changes a phase contract.
 
 ## Workload guard (never bypassed, even in automatic mode)
 

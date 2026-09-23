@@ -177,16 +177,16 @@ need explicit human approval before `sdd:sdd-steer` applies them).
 |---------|---------|---------|
 | execution mode | interactive \| automatic | interactive |
 | delivery strategy | ask-on-risk \| auto-chain \| single-pr \| exception-ok | ask-on-risk |
-| artifact store | engram \| openspec \| hybrid \| none | read `openspec/config.yaml`; if unset, ask once |
+| artifact store | any registered backend or `+` combination; `none` | read `openspec/config.yaml`; if unset, ask once |
 
 ## Persistence routing
 
-Both persistence contracts (openspec files / Engram MCP) ship with this workflow —
-they are part of this same document (plugin installs) or of
-`.sdd/core/persistence/` (generic install). Every artifact has ONE logical
-identity (`<change>/<type>`) mapped to both backends; the `artifact_store` key in
-`openspec/config.yaml` selects where phases read/write. `hybrid` writes both,
-reads Engram first.
+Phases speak only the abstract operations SAVE / LOAD / LIST defined in the
+persistence interface (bundled with this workflow — same document in plugin
+installs, `.sdd/core/persistence/` in generic installs). `openspec/config.yaml`
+→ `artifact_store` selects the backend doc (files, Engram, SQLite, any mapped
+MCP server, or a `+` combination: write ALL, read in listed order). Adding a
+backend never changes a phase contract.
 
 ## Workload guard (never bypassed, even in automatic mode)
 
@@ -205,9 +205,160 @@ model tokens.
 
 ---
 
+# Persistence backend: Engram (MCP)
+
+Local memory DB via the Engram MCP server. Cross-session recovery and compaction
+survival; NOT team-shareable (local DB) — for team workflows combine
+(`openspec+engram`) or prefer the files backend.
+
+## Operations
+
+```
+SAVE(key, content): mem_save(title: key, topic_key: key, type: "architecture",
+                  project: "{project}", capture_prompt: false, content)
+                  — topic_key makes SAVE an upsert
+LOAD(key):          mem_search(query: key, project: "{project}") → id,
+                    THEN mem_get_observation(id) → FULL content.
+                    ⚠ search results are 300-char PREVIEWS — using them as
+                    source material violates the LOAD contract. Always follow
+                    with mem_get_observation.
+LIST(prefix):       mem_search(query: prefix, project: "{project}", limit: 20)
+```
+
+`capture_prompt: false` is mandatory for pipeline artifacts (automated outputs,
+not human saves); omit the field only if the tool schema lacks it.
+
+## Key mapping
+
+| Logical key | topic_key |
+|-------------|-----------|
+| `init/<project>` | `sdd-init/<project>` |
+| `caps/<project>` | `sdd/<project>/testing-capabilities` |
+| `<change>/<type>` | `sdd/<change>/<type>` |
+| `lessons/<change>` | `sdd/<change>/postmortem` |
+
+`type` argument of mem_save: `architecture` for pipeline artifacts, `config`
+for caps.
+
+## Capability notes
+
+| | |
+|---|---|
+| Team-shareable | no — local DB |
+| Survives new session | yes |
+| Version history | no — upsert overwrites (git-combine via `openspec+engram` if needed) |
+| Known limits | preview-only search (see LOAD), conflict-review prompts on save |
+
+---
+
+# Persistence — Backend Interface
+
+Every artifact in the pipeline has ONE logical identity, independent of storage:
+
+```
+<change>/<type>          e.g. add-rate-limiting/proposal
+init/<project>           project context        → project-context
+caps/<project>           testing capabilities   → testing-capabilities
+lessons/<change>         postmortem output      → lessons
+```
+
+A **backend** is any store that implements three operations. Phases speak ONLY
+these operations — never a vendor tool name.
+
+| Operation | Contract |
+|-----------|----------|
+| `SAVE(key, content)` | create or REPLACE atomically by key (upsert). No append-mode backends qualify without a merge rule. |
+| `LOAD(key)` | return the FULL content. A preview/truncated result is a contract violation — phases must re-fetch until they have full text. |
+| `LIST(prefix)` | enumerate keys under a prefix (used for recovery and `status`). |
+
+Plus two shared rules every backend inherits:
+
+- **Read before write**: LOAD first when the key may exist; update, don't clobber.
+- **apply-progress merges**: SAVE only after folding previous completions in.
+
+## Selection
+
+`openspec/config.yaml`:
+
+```yaml
+artifact_store: openspec          # single backend
+artifact_store: openspec+engram   # combination: write ALL, read in listed order
+artifact_store: none              # conversation-only, warn about loss
+```
+
+Any backend name (or `+` combination) that has a doc in this folder is valid.
+`none` always valid.
+
+## Registered backends
+
+| Key | Doc | Shareable | Cross-session | Needs |
+|-----|-----|-----------|---------------|-------|
+| `openspec` | openspec.md | ✅ (git) | via repo | — (always available) |
+| `engram` | engram.md | ❌ local DB | ✅ | Engram MCP configured |
+| `sqlite` | sqlite.md | ❌ local file | ✅ | `sqlite3` CLI |
+| `mcp-generic` | mcp-generic.md | ❌ | depends on server | any MCP store with 3 mappable tools |
+
+## Adding your own backend
+
+1. Copy `template.md` → `<name>.md`, fill the three operations + tooling/paths.
+2. Add a row to the table above.
+3. Done — no phase, command or orchestrator file changes. `config.yaml` picks it.
+
+Test it: run `LOAD` on a key you `SAVE`d in the same session and verify the
+content is byte-identical and untruncated.
+
+---
+
+# Persistence backend: generic MCP memory server
+
+Any MCP server that exposes store / fetch / enumerate tools (memory, knowledge,
+vector-DB bridges…) can back the pipeline. This doc maps the three abstract
+operations onto YOUR server's tools — fill the blanks once per project.
+
+## Tool mapping (fill in)
+
+```
+server:   <mcp server name as configured>
+SAVE:     <tool + args template>   — MUST upsert by key (else wrap: delete-then-create)
+LOAD:     <tool + args template>   — MUST return full content (if the server returns
+                                     snippets, require its get-by-id follow-up call)
+LIST:     <tool + args template>   — enumerate by key prefix
+```
+
+## Rules
+
+- Verify the mapping before first real use: SAVE a probe key, LIST it, LOAD it,
+  diff content. A server that cannot return FULL content on LOAD fails the
+  interface contract — do not use it (see interface.md).
+- Upsert: if the server only appends, SAVE = delete matching key + create.
+- Namespacing: prefix every key with `sdd/` to coexist with other users of the
+  server.
+
+## Capability notes
+
+| | |
+|---|---|
+| Team-shareable | depends on server (remote/HTTP: usually yes) |
+| Survives new session | yes (that's the point) |
+| Version history | server-dependent — record it here if supported |
+| Known limits | <auth, truncation, rate limits> |
+
+---
+
 # Persistence backend: openspec (files)
 
-Canonical backend. Everything lives in the user project, git-tracked, shareable.
+Canonical backend, always available. Everything lives in the user project,
+git-tracked, team-shareable, versioned by git itself.
+
+## Operations
+
+```
+SAVE(key, content): write to the mapped path (mkdir -p parents); read-before-write applies
+LOAD(key):          read the mapped file — full content by definition
+LIST(prefix):       ls openspec/changes/<change>/ (+ find for specs)
+```
+
+## Mapping
 
 | Logical artifact | Path |
 |------------------|------|
@@ -233,63 +384,72 @@ Rules: read-before-write (update, never blind overwrite); archived changes under
 
 ---
 
-# Persistence backend: Engram (MCP)
+# Persistence backend: SQLite (local file)
 
-Optional backend for tools with the Engram MCP server configured. Cross-session
-recovery and compaction survival; NOT team-shareable (local DB) — for team
-workflows prefer `openspec` or `hybrid`.
+Single local database, zero network, no MCP required. Good middle ground:
+cross-session recovery like Engram, but portable with the machine and greppable.
 
-## Topic-key mapping (same logical identity as openspec)
-
-| Logical artifact | topic_key | type |
-|------------------|-----------|------|
-| project context | `sdd-init/{project}` | architecture |
-| testing capabilities | `sdd/{project}/testing-capabilities` | config |
-| state | `sdd/{change}/state` | — (also write state.yaml to disk; cheap insurance) |
-| explore | `sdd/{change}/explore` | architecture |
-| proposal | `sdd/{change}/proposal` | architecture |
-| spec | `sdd/{change}/spec` | architecture |
-| clarifications | `sdd/{change}/clarifications` | architecture |
-| design | `sdd/{change}/design` | architecture |
-| tasks | `sdd/{change}/tasks` | architecture |
-| estimate | `sdd/{change}/estimate` | architecture |
-| apply-progress | `sdd/{change}/apply-progress` | architecture |
-| drift | `sdd/{change}/drift` | architecture |
-| security | `sdd/{change}/security` | architecture |
-| verify | `sdd/{change}/verify-report` | architecture |
-| archive | `sdd/{change}/archive-report` | architecture |
-
-## Phase protocol
-
-Retrieval (search returns PREVIEWS — full content is mandatory):
+## Operations
 
 ```
-mem_search(query: "sdd/{change}/{type}", project: "{project}") → id
-mem_get_observation(id)                                        → full content
+SAVE(key, content): INSERT OR REPLACE INTO sdd_artifacts(key, content, updated_at)
+                    VALUES ('<key>', '<content>', datetime('now'));
+LOAD(key):          SELECT content FROM sdd_artifacts WHERE key='<key>';
+LIST(prefix):       SELECT key, updated_at FROM sdd_artifacts
+                    WHERE key LIKE '<prefix>%';
 ```
 
-Persistence (upsert via topic_key — re-running updates, never duplicates):
+Invoke via `sqlite3 openspec/.sdd-store.db "<sql>"`. Content with quotes: pass
+through a temp file (`sqlite3 db ".read tmp.sql"`) or use parameter support if
+available. Key slashes are kept verbatim (keys are plain TEXT).
+
+## Setup (one-time, on first SAVE)
+
+```sql
+CREATE TABLE IF NOT EXISTS sdd_artifacts (
+  key TEXT PRIMARY KEY, content TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+```
+
+## Capability notes
+
+| | |
+|---|---|
+| Team-shareable | no — but the .db file can be committed if the team accepts binary churn |
+| Survives new session | yes |
+| Version history | no (add an sdd_history table + trigger if you want it) |
+| Known limits | quoting via CLI; no full-text search without FTS5 module |
+
+---
+
+# Persistence backend: <name>   ← copy this file, fill <>
+
+<!-- One paragraph: what this store is and when to prefer it. -->
+
+## Operations
 
 ```
-mem_save(title: "sdd/{change}/{type}", topic_key: same, type: "architecture",
-         project: "{project}", capture_prompt: false, content: "{full artifact}")
+SAVE(key, content):
+  <exact command/tool call — upsert semantics>
+LOAD(key):
+  <exact command/tool call — must return FULL content>
+LIST(prefix):
+  <exact command/tool call>
 ```
 
-`capture_prompt: false` is mandatory for pipeline artifacts (they are automated
-outputs, not human saves); omit the field only if the tool schema lacks it.
+Key sanitization: `<change>/<type>` maps to
+<how slashes/namespacing are handled in this store>.
 
-## apply-progress continuity
+## Setup (one-time)
 
-Before starting, search for existing `sdd/{change}/apply-progress`; if found, read
-it, skip completed tasks, and MERGE on save. Overwriting without reading loses
-prior batches.
+<schema creation / server config / folder init — or "none">
 
-## Hybrid mode
+## Capability notes
 
-Write BOTH backends for every artifact; read Engram first, filesystem fallback.
-Higher token cost — use when you need recovery AND team sharing.
+| | |
+|---|---|
+| Team-shareable | yes/no — why |
+| Survives new session | yes/no |
+| Version history | yes/no |
+| Known limits | <truncation, auth, size> |
 
-## none mode
-
-Return artifacts inline only; create no files, no saves. Warn that downstream
-phases depend on what only the conversation holds.

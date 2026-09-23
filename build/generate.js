@@ -91,12 +91,8 @@ function listFiles(dir, re) {
 
 let created = [];
 
-const doc = {
-  orchestrator: null,
-  conventions: null,
-  persistenceOpenspec: null,
-  persistenceEngram: null,
-};
+// persistence docs are bundled dynamically: any file added to core/persistence/
+// ships in every skill body without touching this generator.
 
 function generate() {
   const phaseFiles = listFiles(path.join(CORE, 'phases'), /\.md$/);
@@ -118,32 +114,26 @@ function generate() {
 
   const orchestrator = read(path.join(CORE, 'orchestrator.md'));
   const conventions = read(path.join(CORE, 'conventions.md'));
-  const persistenceOpenspec = read(path.join(CORE, 'persistence', 'openspec.md'));
-  const persistenceEngram = read(path.join(CORE, 'persistence', 'engram.md'));
+  const persistence = listFiles(path.join(CORE, 'persistence'), /\.md$/)
+    .map((f) => read(path.join(CORE, 'persistence', f)));
+  if (!persistence.length) fail('no docs under core/persistence/');
 
-  generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, persistenceOpenspec, persistenceEngram });
-  generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions, persistenceOpenspec, persistenceEngram });
+  generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, persistence });
+  generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions, persistence });
   generateGeneric();
   verify();
 }
 
-function skillBody(dialect, { conventions, orchestrator, persistenceOpenspec, persistenceEngram }) {
+function skillBody(dialect, { conventions, orchestrator, persistence }) {
   return resolve(
-    [
-      conventions.trim(),
-      '\n\n---\n\n',
-      orchestrator.trim(),
-      '\n\n---\n\n',
-      persistenceOpenspec.trim(),
-      '\n\n---\n\n',
-      persistenceEngram.trim(),
-      '\n',
-    ].join(''),
+    [conventions.trim(), '\n\n---\n\n', orchestrator.trim(), '\n\n---\n\n',
+     ...persistence.map((doc) => doc.trim() + '\n\n---\n\n')].join('')
+      .replace(/\n---\n\n$/, '\n'),
     dialect
   );
 }
 
-function generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, persistenceOpenspec, persistenceEngram }) {
+function generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, persistence }) {
   const out = path.join(ADAPTERS, 'claude');
 
   write(path.join(out, '.claude-plugin', 'plugin.json'), JSON.stringify(manifest.plugin, null, 2) + '\n');
@@ -174,13 +164,13 @@ function generateClaude({ phaseFiles, commandFiles, orchestrator, conventions, p
     ['name', manifest.skill.name],
     ['description', yamlStr(manifest.skill.description)],
   ]);
-  write(path.join(out, 'skills', 'sdd-workflow', 'SKILL.md'), skillFm + skillBody('claude', { conventions, orchestrator, persistenceOpenspec, persistenceEngram }));
+  write(path.join(out, 'skills', 'sdd-workflow', 'SKILL.md'), skillFm + skillBody('claude', { conventions, orchestrator, persistence }));
 
   copyFile(path.join(HOOKS_SRC, 'hooks.json'), path.join(out, 'hooks', 'hooks.json'));
   copyFile(path.join(HOOKS_SRC, 'tasks-guard.sh'), path.join(out, 'hooks', 'tasks-guard.sh'), 0o755);
 }
 
-function generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions, persistenceOpenspec, persistenceEngram }) {
+function generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions, persistence }) {
   const out = path.join(ADAPTERS, 'opencode');
 
   for (const f of phaseFiles) {
@@ -224,7 +214,7 @@ function generateOpencode({ phaseFiles, commandFiles, orchestrator, conventions,
     ['name', manifest.skill.name],
     ['description', yamlStr(manifest.skill.description)],
   ]);
-  write(path.join(out, 'skills', 'sdd-workflow', 'SKILL.md'), skillFm + skillBody('opencode', { conventions, orchestrator, persistenceOpenspec, persistenceEngram }));
+  write(path.join(out, 'skills', 'sdd-workflow', 'SKILL.md'), skillFm + skillBody('opencode', { conventions, orchestrator, persistence }));
 }
 
 const AGENTS_BLOCK = `<!-- sdd-kit generic block v2 -->
@@ -257,8 +247,9 @@ Pipeline:
 - Never bypass the workload guard in \`tasks.md\` (chained PRs / size exception).
 - Commit guard: \`.git/hooks/pre-commit\` enforces unchecked tasks
   (\`sdd guard install\`); bypass deliberately with \`SDD_ALLOW_COMMIT=1\`.
-- Persistence routing: \`.sdd/core/persistence/openspec.md\` (files, default) and
-  \`.sdd/core/persistence/engram.md\` (MCP, optional; \`hybrid\` writes both).
+- Persistence routing: \`.sdd/core/persistence/interface.md\` defines SAVE/LOAD/LIST;
+  pick a backend doc (files, Engram, SQLite, any mapped MCP server, or \`+\`
+  combinations) via \`artifact_store\` in \`openspec/config.yaml\`.
 - User-facing command contracts: \`.sdd/core/commands/*.md\` — adapt their steps to
   this tool's agent mechanism.
 
