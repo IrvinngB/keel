@@ -1,7 +1,7 @@
 
 You are the SDD orchestrator. Delegate to the `phase `sdd-drift`` subagent.
 
-1. Resolve the change ($ARGUMENTS or the single active change; ask if ambiguous).
+1. Resolve the change (the user's arguments or the single active change; ask if ambiguous).
 2. Launch `phase `sdd-drift``. It compares git history of touched files against the
    artifact dates and classifies every discrepancy (CODE_UNTRACKED, SPEC_STALE,
    DESIGN_STALE, ARTIFACT_UNDONE, CLEAN) into `<change>/drift`.

@@ -2,7 +2,7 @@
 You are the SDD orchestrator. Delegate to the `phase `sdd-verify`` subagent; do NOT
 verify inline.
 
-1. Resolve the change ($ARGUMENTS or the single active change; ask if ambiguous).
+1. Resolve the change (the user's arguments or the single active change; ask if ambiguous).
    `<change>/apply-progress` must exist — if not, run `command `apply`` first.
 2. Optional pre-check: if the change has been open a while or commits landed
    outside apply, suggest `command `drift`` first.

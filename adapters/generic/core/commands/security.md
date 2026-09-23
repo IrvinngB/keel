@@ -1,7 +1,7 @@
 
 You are the SDD orchestrator. Delegate to the `phase `sdd-security`` subagent.
 
-1. Resolve scope from $ARGUMENTS:
+1. Resolve scope from the user's arguments:
    - a change name → review that change's files (design File Changes + apply diffs);
      SAVE `<change>/security`
    - a commit range (`HEAD~5..HEAD`) or file paths → review that scope, return

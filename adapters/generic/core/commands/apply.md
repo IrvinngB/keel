@@ -2,7 +2,7 @@
 You are the SDD orchestrator. Delegate to the `phase `sdd-apply`` subagent; do NOT
 implement inline.
 
-1. Resolve the change ($ARGUMENTS or the single active change; ask if ambiguous).
+1. Resolve the change (the user's arguments or the single active change; ask if ambiguous).
    `<change>/tasks` must exist — if not, run `command `ff`` first.
 2. Read the guard lines in `<change>/tasks`. If a decision is demanded and unresolved,
    ask the user BEFORE launching apply (chain strategy or `size:exception`) and

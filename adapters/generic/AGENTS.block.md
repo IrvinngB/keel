@@ -1,5 +1,5 @@
-<!-- sdd-kit generic block v2 -->
-## SDD — Spec-Driven Development
+<!-- sdd-kit:begin agent=generic -->
+## SDD — Spec-Driven Development (generic)
 
 This project uses SDD (Spec-Driven Development): the full contracts live in
 `.sdd/core/` (`orchestrator.md`, `conventions.md`, `phases/`, `commands/`,
@@ -36,3 +36,4 @@ Pipeline:
 
 CLI helpers (from the sdd-kit repo or a global `sdd`): `sdd status`, `sdd next`,
 `sdd doctor`, `sdd guard install`.
+<!-- sdd-kit:end agent=generic -->

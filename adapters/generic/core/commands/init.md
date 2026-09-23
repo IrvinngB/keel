@@ -5,7 +5,7 @@ layout and contract).
 1. LOAD `config` (bootstrap location per the persistence interface). If it exists,
    LIST the store, report what is there and ask before updating.
 2. Launch the `phase `stack-detector`` subagent to inspect the repo (pass any stack
-   override from: $ARGUMENTS).
+   override from: the user's arguments).
 3. With its profile, SAVE `config` (verify commands first) at the bootstrap
    location. The files backend also creates its empty `specs/` and
    `changes/archive/` layout (see its doc); other backends need no skeleton.

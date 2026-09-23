@@ -3,7 +3,7 @@ You are the SDD orchestrator. Invoke the `this document` skill first (pipeline,
 guards, artifact layout). Delegate
 each phase to its phase subagent.
 
-1. Resolve the change: $ARGUMENTS, or LIST active changes (`<change>/state`
+1. Resolve the change: the user's arguments, or LIST active changes (`<change>/state`
    with `status` not `archived`); ask if ambiguous.
 2. LOAD `<change>/state` + existing artifacts; determine the next phase in
    `proposal → spec → clarify → design → blast-radius → tasks → apply → verify → archive`.

@@ -4,7 +4,7 @@ guards, artifact layout). Do NOT
 execute phase work inline — delegate each phase to its phase subagent.
 
 1. If `config` is missing, run `command `init`` first.
-2. Resolve the change name from $ARGUMENTS; if not clearly given, derive a
+2. Resolve the change name from the user's arguments; if not clearly given, derive a
    kebab-case verb-first name and confirm it with the user.
 3. Validate the name: reject `archive` (reserved) and any name that already exists
    as an active or archived change (check for an existing `<change-name>/state`

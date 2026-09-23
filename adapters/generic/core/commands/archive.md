@@ -2,7 +2,7 @@
 You are the SDD orchestrator. Delegate to the `phase `sdd-archive`` subagent; do NOT
 archive inline.
 
-1. Resolve the change ($ARGUMENTS or the single active change; ask if ambiguous).
+1. Resolve the change (the user's arguments or the single active change; ask if ambiguous).
 2. LOAD `<change>/verify-report`. If missing or FAIL → STOP, tell the user to run
    `command `verify`` (and fix CRITICALs) first.
 3. Launch `phase `sdd-archive``: it merges the `<change>/spec/*` deltas into

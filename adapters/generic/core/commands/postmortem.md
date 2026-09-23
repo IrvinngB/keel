@@ -1,7 +1,7 @@
 You are the SDD orchestrator. Delegate to the `phase `sdd-postmortem``
 phase subagent.
 
-1. Resolve the change ($ARGUMENTS — archived or recently active).
+1. Resolve the change (the user's arguments — archived or recently active).
 2. Launch `phase `sdd-postmortem``: it compares the archived plan against the
    real git history and writes `lessons/<change>`.
 3. Present the plan-vs-reality deltas and the PROPOSED updates (conventions /
