@@ -1,4 +1,6 @@
-# sdd-kit — Spec-Driven Development for any AI coding agent
+# Keel — Spec-Driven Development for any AI coding agent
+
+*The CLI is `sdd`, the commands are `/sdd:*` and the skills are named `sdd-*`: SDD is the methodology, Keel is the project.*
 
 A **stack-agnostic, agent-agnostic** SDD pipeline:
 
@@ -33,29 +35,29 @@ bin/sdd             ← CLI: build · install · status · next · doctor · gua
 hooks/              ← PreToolUse (Claude) + pre-commit (universal git guard)
 ```
 
-**New tool?** Add a dialect block to the generator; `core/` never changes.
+**New tool?** Add one entry to the agent registry in `build/manifest.json`; `core/` never changes.
 
 ## Install
 
 ### Claude Code (plugin)
 
 ```
-/plugin marketplace add IrvinngB/sdd-kit
-/plugin install sdd@sdd-kit
+/plugin marketplace add IrvinngB/keel
+/plugin install sdd@keel
 ```
 
 ### Every other agent
 
 ```bash
-git clone https://github.com/IrvinngB/sdd-kit && cd sdd-kit
+git clone https://github.com/IrvinngB/keel && cd keel
 ln -s "$PWD/bin/sdd" ~/.local/bin/sdd        # optional
 
 sdd build                                    # regenerate adapters (already committed)
 sdd install opencode --user                  # global: ~/.config/opencode/{agent,command,skills}
-sdd install opencode --project               # per-repo: .opencode/ (commit it, team gets it)
+sdd install opencode --project               # per-repo: .opencode/{agent,command} + .agents/skills
 sdd install codex --project                  # .agents/skills + AGENTS.md block + commit guard
-sdd install gemini --project                 # .gemini/{skills,commands} + GEMINI.md block
-sdd install kimi --project                   # .kimi/skills + AGENTS.md block   (experimental)
+sdd install gemini --project                 # .agents/skills + .gemini/commands + GEMINI.md block
+sdd install kimi --project                   # .agents/skills + AGENTS.md block   (experimental)
 sdd install generic --project                # any other AGENTS.md-respecting agent: .sdd/core/
                                              # + AGENTS.md (--context-file=GEMINI.md for a 2nd file)
 sdd install claude                           # prints the /plugin commands above
@@ -69,10 +71,10 @@ block to paste instead of writing it: no verified user-level context path).
 | Agent | Skills dir | Commands | Subagents | Context file | Status |
 |-------|-----------|----------|-----------|--------------|--------|
 | Claude Code | plugin | `/sdd:new` | yes | plugin | Verified (1) |
-| opencode | `.opencode/skills` | `/sdd-new` | yes | — | Verified (1) |
+| opencode | `.agents/skills` | `/sdd-new` | yes | — | Verified (1) |
 | Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Verified |
-| Gemini CLI | `.gemini/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Verified |
-| Kimi Code CLI | `.kimi/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
+| Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Verified |
+| Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
 | Generic | — | read the phase file | single-phase | `AGENTS.md` | Verified |
 
 **Verified** means the extension surface was checked against the agent's official
@@ -83,19 +85,27 @@ were not re-checked. (2) Kimi reading `AGENTS.md` is inferred, not confirmed.
 Gemini CLI reads `GEMINI.md`, not `AGENTS.md`, unless you list it in
 `context.fileName`; `sdd install gemini` writes `GEMINI.md`.
 
-**Shared `.agents/skills`.** Codex, opencode, Gemini and Kimi all read
-`.agents/skills`, and Codex has no other skills directory. The skills `sdd install
-codex` writes there are invocation-neutral: they say "the `sdd-init` skill" and never
-`$sdd-init` or `/skill:sdd-init`, so no reader sees another agent's syntax. Each
-agent's own invocation hint lives only in its context-file block. Agents with a native
-skills dir (opencode, Gemini, Kimi) install there with their own syntax. If an agent
-would find the same skills in two directories, `sdd install` warns and `sdd doctor`
-reports "would discover the sdd skills twice" — keep one copy.
+**Skills are installed once.** Codex, opencode, Gemini and Kimi all read
+`.agents/skills`, so at project scope every one of them installs its skills there and
+nowhere else. Skill bodies are invocation-neutral for every agent: they say "phase
+`sdd-apply`" and "command `continue`", never `$sdd-continue`, `/sdd:continue` or
+`/skill:sdd-continue`, so the same file is correct for every reader and cannot drift.
+Each agent's own syntax lives only in its context-file block and in its native
+command/agent files. User scope (`--user`) keeps each agent's own skills dir, because a
+user-level `~/.agents/skills` is only verified for Codex. The one way to get a real
+double copy is a leftover from an older install (for example `.kimi/skills`): `sdd
+install` warns and `sdd doctor` reports "would discover the sdd skills twice"; remove the
+extra `sdd*` entries yourself — sdd never deletes your files.
 
 **Per-agent context blocks.** Every agent owns one marked region in the context file
-(`<!-- sdd-kit:begin agent=<id> -->` … `<!-- sdd-kit:end agent=<id> -->`). Codex and
-Kimi can share one `AGENTS.md`; re-running `sdd install` replaces only that agent's
-region and never touches your own content outside the markers.
+(`<!-- keel:begin agent=<id> -->` … `<!-- keel:end agent=<id> -->`). Codex and Kimi can
+share one `AGENTS.md`; re-running `sdd install` replaces only that agent's region and
+never touches your own content outside the markers, and keeps the file's existing line
+endings. If the markers are malformed (a begin without an end, a duplicate block, a
+mismatched end), `sdd install` refuses to touch the file and names the line to fix;
+`sdd doctor` reports the same. A generic block from an early version with no end marker
+(`<!-- sdd-kit generic block vN -->`) cannot be delimited safely: `sdd doctor` reports it
+as unmanaged, and `sdd install` appends a managed block and leaves it untouched.
 
 **Dry run.** `sdd install <agent> --dry-run` prints what it would do and writes
 nothing: no files, no directories, no context-file edits, no git hook.

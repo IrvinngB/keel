@@ -1,5 +1,5 @@
 {
-  "name": "sdd-kit",
+  "name": "keel",
   "description": "A stack-agnostic Spec-Driven Development workflow plugin for Claude Code.",
   "owner": {
     "name": "Irvinng"
