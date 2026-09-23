@@ -5,8 +5,9 @@ description: "Spec-Driven Development pipeline contract for this project. Read b
 # SDD Workflow Contract
 
 The main agent session is the SDD **orchestrator**: it routes phases to
-its phase subagents and never executes phase work inline. Artifacts are plain files
-under `openspec/` in the user's project — git-tracked, no external services.
+its phase subagents and never executes phase work inline. Artifacts are addressed by
+logical keys (see the persistence interface) and stored by the backend selected in
+`config` — by default plain git-tracked files, no external services.
 
 ## Pipeline
 
@@ -26,51 +27,49 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
   batches and after archive), `sdd:sdd-postmortem` (after archive — proposes
   steering updates, never auto-applies).
 
-## Artifact layout
+## Artifact keys
 
-```
-openspec/
-├── config.yaml                    # stack + testing commands + phase rules (sdd-init)
-├── steering/                      # project-level steering docs (sdd-init, sdd-steer)
-│   ├── product.md                 # what the project is, for whom
-│   ├── tech.md                    # stack, versions, settled architecture decisions
-│   └── structure.md               # folder organization, naming conventions
-├── lessons/                         # sdd-postmortem per change (plan vs reality)
-├── specs/                         # SOURCE OF TRUTH — main spec per capability
-│   └── <capability>/spec.md
-└── changes/
-    ├── archive/                   # completed: YYYY-MM-DD-<change>/ (never modify)
-    └── <change-name>/             # active change (kebab-case, verb-first)
-        ├── state.yaml             # DAG state (orchestrator-owned only)
-        ├── exploration.md         # sdd-explore
-        ├── proposal.md            # sdd-propose
-        ├── specs/<capability>/spec.md  # sdd-spec (deltas / new full specs)
-        ├── clarifications.md      # sdd-clarify (questions + resolved answers)
-        ├── design.md              # sdd-design (incl. Rollback & Observability)
-        ├── blast-radius.md        # sdd-blast-radius (consumer map + must-handle)
-        ├── tasks.md               # sdd-tasks; [x] marks updated by sdd-apply
-        ├── estimate.md            # sdd-estimate
-        ├── apply-progress.md      # sdd-apply cumulative progress
-        ├── drift-report.md        # sdd-drift
-        ├── security-report.md     # sdd-security
-        ├── verify-report.md       # sdd-verify
-        └── archive-report.md      # sdd-archive (before folder moves)
-```
+Every artifact is addressed by a logical key; the persistence backend decides where
+it lives (the default files backend maps keys to an `openspec/` tree — see its doc).
+
+| Key | Written by |
+|-----|-----------|
+| `config` | init / stack-detector — stack, testing commands, phase rules, `artifact_store` |
+| `steering/<product\|tech\|structure>` | init, sdd-steer — project-level steering docs |
+| `specs/<capability>` | sdd-archive — SOURCE OF TRUTH, one main spec per capability |
+| `lessons/<change>` | sdd-postmortem — plan vs reality |
+| `<change>/state` | orchestrator ONLY — DAG state |
+| `<change>/explore` | sdd-explore |
+| `<change>/proposal` | sdd-propose |
+| `<change>/spec/<capability>` | sdd-spec — deltas / new full specs |
+| `<change>/clarify` | sdd-clarify — questions + resolved answers |
+| `<change>/design` | sdd-design (incl. Rollback & Observability) |
+| `<change>/blast-radius` | sdd-blast-radius — consumer map + must-handle |
+| `<change>/tasks` | sdd-tasks; `[x]` marks updated by sdd-apply |
+| `<change>/estimate` | sdd-estimate |
+| `<change>/apply-progress` | sdd-apply — cumulative progress |
+| `<change>/drift` | sdd-drift |
+| `<change>/security` | sdd-security |
+| `<change>/verify-report` | sdd-verify |
+| `<change>/archive-report` | sdd-archive |
+
+Change names are kebab-case, verb-first. Reserved names: `config`, `steering`,
+`specs`, `lessons`, `init`, `caps`.
 
 ## Shared rules for every phase agent
 
-- **Read before write**: if the output file exists, read it and UPDATE — never blind
+- **Read before write**: if the output key exists, LOAD it and UPDATE — never blind
   overwrite. Re-running a phase is a continuation.
-- **Project context first**: read `openspec/config.yaml`, `openspec/steering/` and
-  the project's own `CLAUDE.md`/`AGENTS.md` when present; follow the project's real
+- **Project context first**: LOAD `config` and the `steering/*` keys, plus the
+  project's own `CLAUDE.md`/`AGENTS.md` when present; follow the project's real
   patterns, not generic best practices.
 - **Return envelope** (to the orchestrator): `status` (success|partial|blocked),
-  `executive_summary` (1-3 sentences), `artifacts` (paths written),
+  `executive_summary` (1-3 sentences), `artifacts` (keys written),
   `next_recommended`, `risks` (or "None").
 - **Size budgets**: proposal < 450 words, spec < 650, design < 800, blast-radius
   < 400, tasks < 530. Bullets and tables over prose.
-- **state.yaml**: `current_phase`, `completed: [...]`, `open_questions`, `updated`.
-  Only the orchestrator writes it.
+- **`<change>/state`**: `current_phase`, `completed: [...]`, `open_questions`,
+  `updated`, `status: active|archived`, `archived_on`. Only the orchestrator writes it.
 
 ## Spec format rules
 
@@ -84,7 +83,7 @@ openspec/
 ## Review workload guard
 
 - Default PR review budget: **400 changed lines** (additions + deletions).
-- `sdd:sdd-tasks` MUST include these exact plain-text lines in `tasks.md` (downstream
+- `sdd:sdd-tasks` MUST include these exact plain-text lines in `<change>/tasks` (downstream
   guards match them literally):
 
 ```text
@@ -106,17 +105,22 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 
 ## Archive rules
 
-- NEVER archive with open CRITICAL findings in `verify-report.md`.
-- Sync deltas into `openspec/specs/` BEFORE moving: ADDED → append, MODIFIED →
-  replace block, REMOVED → delete, new capability → copy as full spec.
-- Move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. The archive is an audit
-  trail — never delete or modify archived changes.
+- NEVER archive with open CRITICAL findings in `<change>/verify-report`.
+- Sync deltas into `specs/<capability>` BEFORE marking the change archived: ADDED →
+  append, MODIFIED → replace block, REMOVED → delete, new capability → copy as full
+  spec.
+- Archiving = SAVE `<change>/archive-report`, then the orchestrator SAVEs
+  `<change>/state` with `status: archived`; a backend with directories may relocate
+  the change (files backend doc). The archive is an audit trail — never delete or
+  modify archived changes.
 - After archive, run `sdd:sdd-steer` to refresh steering docs.
 
 ## Commit guard (hook)
 
-A PreToolUse hook blocks `git commit` while any active change's `tasks.md` has
-unchecked `- [ ]` boxes. Bypass with env `SDD_ALLOW_COMMIT=1` (use deliberately:
+A PreToolUse hook blocks `git commit` while any active change's `<change>/tasks`
+has unchecked `- [ ]` boxes. It reads the files backend only; on other backends
+it is a no-op, so enforce the same rule by LOADing `<change>/tasks` before
+committing. Bypass with env `SDD_ALLOW_COMMIT=1` (use deliberately:
 WIP commits, docs-only commits, chained-PR boundaries).
 
 ## Execution modes
@@ -157,7 +161,8 @@ need explicit human approval before `sdd:sdd-steer` applies them).
   `sdd:sdd-verify`, `sdd:sdd-archive` (+ utilities
   `sdd:sdd-drift`, `sdd:sdd-security`, `sdd:sdd-estimate`,
   `sdd:sdd-steer`, `sdd:sdd-postmortem`, `sdd:stack-detector`).
-- Read and write `openspec/changes/<change>/state.yaml` (you are its ONLY writer).
+- LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
+  with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload
   decisions, ambiguous change names, archive confirmation).
 - Present phase results and suggest the next command: `/sdd:continue`.
@@ -177,90 +182,62 @@ need explicit human approval before `sdd:sdd-steer` applies them).
 |---------|---------|---------|
 | execution mode | interactive \| automatic | interactive |
 | delivery strategy | ask-on-risk \| auto-chain \| single-pr \| exception-ok | ask-on-risk |
-| artifact store | any registered backend or `+` combination; `none` | read `openspec/config.yaml`; if unset, ask once |
+| artifact store | any registered backend or `+` combination; `none` | `artifact_store` in `config`; if unset, ask once |
 
 ## Persistence routing
 
 Phases speak only the abstract operations SAVE / LOAD / LIST defined in the
 persistence interface (bundled with this workflow — same document in plugin
-installs, `.sdd/core/persistence/` in generic installs). `openspec/config.yaml`
-→ `artifact_store` selects the backend doc (files, Engram, SQLite, any mapped
-MCP server, or a `+` combination: write ALL, read in listed order). Adding a
+installs, `.sdd/core/persistence/` in generic installs), addressing artifacts by
+logical key only. `config` → `artifact_store` selects the backend doc (files, SQLite, any mapped
+MCP memory server, or a `+` combination: write ALL, read in listed order). Adding a
 backend never changes a phase contract.
 
 ## Workload guard (never bypassed, even in automatic mode)
 
 After tasks: if `Decision needed before apply: Yes`,
 `Chained PRs recommended: Yes`, or `400-line budget risk: High` appears in
-`tasks.md` and no decision is cached → ask: chained PRs
+`<change>/tasks` and no decision is cached → ask: chained PRs
 (`stacked-to-main` / `feature-branch-chain`) or `size:exception`. Pass the resolved
 decision to apply verbatim.
 
 ## Recovery
 
-On any new session in a repo with `openspec/`: read `openspec/config.yaml`, list
-active changes, read each `state.yaml`, and offer to resume with
+On any new session: LOAD `config` (bootstrap location per the persistence
+interface), LIST active changes, LOAD each `<change>/state`, and offer to resume with
 `/sdd:continue`. `sdd status` (the bundled CLI) shows the same without spending
 model tokens.
 
 ---
 
-# Persistence backend: Engram (MCP)
-
-Local memory DB via the Engram MCP server. Cross-session recovery and compaction
-survival; NOT team-shareable (local DB) — for team workflows combine
-(`openspec+engram`) or prefer the files backend.
-
-## Operations
-
-```
-SAVE(key, content): mem_save(title: key, topic_key: key, type: "architecture",
-                  project: "{project}", capture_prompt: false, content)
-                  — topic_key makes SAVE an upsert
-LOAD(key):          mem_search(query: key, project: "{project}") → id,
-                    THEN mem_get_observation(id) → FULL content.
-                    ⚠ search results are 300-char PREVIEWS — using them as
-                    source material violates the LOAD contract. Always follow
-                    with mem_get_observation.
-LIST(prefix):       mem_search(query: prefix, project: "{project}", limit: 20)
-```
-
-`capture_prompt: false` is mandatory for pipeline artifacts (automated outputs,
-not human saves); omit the field only if the tool schema lacks it.
-
-## Key mapping
-
-| Logical key | topic_key |
-|-------------|-----------|
-| `init/<project>` | `sdd-init/<project>` |
-| `caps/<project>` | `sdd/<project>/testing-capabilities` |
-| `<change>/<type>` | `sdd/<change>/<type>` |
-| `lessons/<change>` | `sdd/<change>/postmortem` |
-
-`type` argument of mem_save: `architecture` for pipeline artifacts, `config`
-for caps.
-
-## Capability notes
-
-| | |
-|---|---|
-| Team-shareable | no — local DB |
-| Survives new session | yes |
-| Version history | no — upsert overwrites (git-combine via `openspec+engram` if needed) |
-| Known limits | preview-only search (see LOAD), conflict-review prompts on save |
-
----
-
 # Persistence — Backend Interface
 
-Every artifact in the pipeline has ONE logical identity, independent of storage:
+Every artifact in the pipeline has ONE logical identity, independent of storage.
+Phases, commands and the orchestrator name artifacts ONLY by these keys and never
+by a path, table or vendor tool.
+
+## Key scheme
 
 ```
-<change>/<type>          e.g. add-rate-limiting/proposal
-init/<project>           project context        → project-context
-caps/<project>           testing capabilities   → testing-capabilities
-lessons/<change>         postmortem output      → lessons
+config                          project configuration (stack, testing commands, artifact_store)
+steering/<product|tech|structure>   project steering docs
+specs/<capability>              main spec — the source of truth
+<change>/state                  DAG state (orchestrator-owned; only the orchestrator SAVEs it)
+<change>/<type>                 change artifact; type is one of:
+                                explore · proposal · clarify · design · blast-radius ·
+                                tasks · estimate · apply-progress · drift · security ·
+                                verify-report · archive-report
+<change>/spec/<capability>      spec delta or new full spec (one key per capability)
+lessons/<change>                postmortem output
+init/<project>                  project context (legacy key, kept)
+caps/<project>                  testing capabilities (legacy key, kept)
 ```
+
+Reserved first segments — never valid as a change name: `config`, `steering`,
+`specs`, `lessons`, `init`, `caps`.
+
+`<change>/state` fields: `current_phase`, `completed: [...]`, `open_questions`,
+`updated`, `status: active|archived`, `archived_on: YYYY-MM-DD` (set when archived).
 
 A **backend** is any store that implements three operations. Phases speak ONLY
 these operations — never a vendor tool name.
@@ -268,44 +245,73 @@ these operations — never a vendor tool name.
 | Operation | Contract |
 |-----------|----------|
 | `SAVE(key, content)` | create or REPLACE atomically by key (upsert). No append-mode backends qualify without a merge rule. |
-| `LOAD(key)` | return the FULL content. A preview/truncated result is a contract violation — phases must re-fetch until they have full text. |
-| `LIST(prefix)` | enumerate keys under a prefix (used for recovery and `status`). |
+| `LOAD(key)` | return the FULL content. A preview/truncated result is a contract violation — phases must re-fetch until they have full text. A missing key is reported as missing, never as empty content. |
+| `LIST(prefix)` | enumerate keys under a prefix (used for recovery and `status`). SHOULD also return each key's last-updated time; a backend that cannot says so in its doc. |
 
-Plus two shared rules every backend inherits:
+Plus shared rules every backend inherits:
 
 - **Read before write**: LOAD first when the key may exist; update, don't clobber.
 - **apply-progress merges**: SAVE only after folding previous completions in.
+- **Active changes**: `LIST` the `*/state` keys and keep those whose `status` is not
+  `archived`.
+- **Archived is immutable**: once `<change>/state` has `status: archived`, no phase
+  SAVEs any `<change>/...` key. Every archived key stays readable by LOAD/LIST
+  (postmortem depends on it).
+
+## Bootstrap
+
+`config` is the one key that names the backend, so it cannot be located through the
+backend. The orchestrator always resolves it at the files-backend location (see
+`openspec.md`); after that every phase LOADs `config` like any other key. A `+`
+combination may mirror `config` to the other backends, but the file copy stays
+authoritative.
 
 ## Selection
 
-`openspec/config.yaml`:
+`artifact_store` inside `config`:
 
 ```yaml
 artifact_store: openspec          # single backend
-artifact_store: openspec+engram   # combination: write ALL, read in listed order
+artifact_store: openspec+sqlite   # combination: write ALL, read in listed order
 artifact_store: none              # conversation-only, warn about loss
 ```
 
 Any backend name (or `+` combination) that has a doc in this folder is valid.
 `none` always valid.
 
+## Archiving
+
+Archive is a state transition, not a file move: the archive phase LOADs the
+`<change>/spec/*` deltas, merges each into `specs/<capability>` (LOAD + SAVE), and
+SAVEs `<change>/archive-report`; the orchestrator then SAVEs `<change>/state` with
+`status: archived` and `archived_on`.
+
+A backend with native directories MAY relocate the change as a finalization step
+(the files backend does — see `openspec.md`) as long as every key keeps resolving.
+A backend without directories (SQLite, memory servers, MCP stores) needs nothing more: the
+`status: archived` flag IS the archive, and its keys are simply never written again.
+
 ## Registered backends
 
 | Key | Doc | Shareable | Cross-session | Needs |
 |-----|-----|-----------|---------------|-------|
 | `openspec` | openspec.md | ✅ (git) | via repo | — (always available) |
-| `engram` | engram.md | ❌ local DB | ✅ | Engram MCP configured |
 | `sqlite` | sqlite.md | ❌ local file | ✅ | `sqlite3` CLI |
 | `mcp-generic` | mcp-generic.md | ❌ | depends on server | any MCP store with 3 mappable tools |
 
 ## Adding your own backend
 
+Bring your own store: map any MCP memory server with `mcp-generic.md`, or copy
+`template.md` for anything else.
+
 1. Copy `template.md` → `<name>.md`, fill the three operations + tooling/paths.
 2. Add a row to the table above.
-3. Done — no phase, command or orchestrator file changes. `config.yaml` picks it.
+3. Done — no phase, command or orchestrator file changes. `artifact_store` in `config` picks it.
 
 Test it: run `LOAD` on a key you `SAVE`d in the same session and verify the
-content is byte-identical and untruncated.
+content is byte-identical and untruncated. Then SAVE and LOAD `config`, `steering/tech`,
+`specs/<capability>`, `<change>/state` and `<change>/spec/<capability>` — the keys
+with structure beyond `<change>/<type>`.
 
 ---
 
@@ -332,7 +338,45 @@ LIST:     <tool + args template>   — enumerate by key prefix
   interface contract — do not use it (see interface.md).
 - Upsert: if the server only appends, SAVE = delete matching key + create.
 - Namespacing: prefix every key with `sdd/` to coexist with other users of the
-  server.
+  server. Every logical key in interface.md (`config`, `steering/<name>`,
+  `specs/<capability>`, `<change>/state`, `<change>/spec/<capability>`, …) maps
+  verbatim under that prefix.
+- `config` is a mirror only; the file copy stays authoritative (interface.md
+  Bootstrap). Archiving needs no extra step — `status: archived` in
+  `<change>/state` is the archive.
+- LOAD must match the EXACT key. Free-text or fuzzy search can return a
+  neighbouring key (`<change>/design` hitting `other-<change>/design`): after
+  resolving, compare the stored key to the requested one and reject mismatches.
+- LIST must page until exhausted (or use a limit larger than the store). A
+  silent cap truncates active-change and `<change>/spec/` listings.
+- Active changes = `sdd/*/state` records whose content is not `status: archived`.
+  Reserve the names `config`, `specs`, `steering` and `lessons`, since they
+  share the namespace with change names.
+
+## Key mapping (default, under the `sdd/` prefix)
+
+| Logical key | Stored key |
+|-------------|------------|
+| `<change>/<type>` | `sdd/<change>/<type>` |
+| `<change>/state` | `sdd/<change>/state` |
+| `<change>/spec/<capability>` | `sdd/<change>/spec/<capability>` |
+| `specs/<capability>` | `sdd/specs/<capability>` |
+| `steering/<name>` | `sdd/steering/<name>` |
+| `config` | `sdd/config` (mirror only) |
+| `lessons/<change>` | `sdd/lessons/<change>` |
+
+`lessons/<change>` must never live under `sdd/<change>/`: postmortem runs after
+archive, and no phase may SAVE inside an archived change namespace.
+
+## Worked example (hypothetical server exposing `put`, `get`, `find`)
+
+```
+server:   notes
+SAVE:     put(key: "sdd/<key>", body: content)          — put overwrites: upsert OK
+LOAD:     r = find(prefix: "sdd/<key>", limit: 1) → id; get(id) → body
+          reject unless r.key == "sdd/<key>"; find returns 200-char snippets, so get(id) is required
+LIST:     find(prefix: "sdd/<prefix>", page: 1..n) until empty
+```
 
 ## Capability notes
 
@@ -348,46 +392,68 @@ LIST:     <tool + args template>   — enumerate by key prefix
 # Persistence backend: openspec (files)
 
 Canonical backend, always available. Everything lives in the user project,
-git-tracked, team-shareable, versioned by git itself.
+git-tracked, team-shareable, versioned by git itself. This is the ONLY document that
+maps logical keys to `openspec/` paths.
 
 ## Operations
 
 ```
 SAVE(key, content): write to the mapped path (mkdir -p parents); read-before-write applies
 LOAD(key):          read the mapped file — full content by definition
-LIST(prefix):       ls openspec/changes/<change>/ (+ find for specs)
+LIST(prefix):       list the mapped directory for the prefix (find for spec keys);
+                    updated time = `git log -1 --format=%ci -- <path>`, else file mtime
 ```
 
 ## Mapping
 
-| Logical artifact | Path |
-|------------------|------|
-| config | `openspec/config.yaml` |
-| steering docs | `openspec/steering/{product,tech,structure}.md` |
-| main spec (source of truth) | `openspec/specs/<capability>/spec.md` |
-| state | `openspec/changes/<change>/state.yaml` |
-| exploration | `openspec/changes/<change>/exploration.md` |
-| proposal | `openspec/changes/<change>/proposal.md` |
-| spec delta / new spec | `openspec/changes/<change>/specs/<capability>/spec.md` |
-| clarifications | `openspec/changes/<change>/clarifications.md` |
-| design | `openspec/changes/<change>/design.md` |
-| tasks | `openspec/changes/<change>/tasks.md` |
-| estimate | `openspec/changes/<change>/estimate.md` |
-| apply progress | `openspec/changes/<change>/apply-progress.md` |
-| drift | `openspec/changes/<change>/drift-report.md` |
-| security | `openspec/changes/<change>/security-report.md` |
-| verify | `openspec/changes/<change>/verify-report.md` |
-| archive report | `openspec/changes/<change>/archive-report.md` (moves with folder) |
+| Logical key | Path |
+|-------------|------|
+| `config` | `openspec/config.yaml` (bootstrap: always this location) |
+| `steering/<name>` | `openspec/steering/<name>.md` |
+| `specs/<capability>` | `openspec/specs/<capability>/spec.md` |
+| `lessons/<change>` | `openspec/lessons/<change>.md` |
+| `init/<project>`, `caps/<project>` | not stored separately — covered by `config` (stack, testing) |
+| `<change>/state` | `openspec/changes/<change>/state.yaml` |
+| `<change>/explore` | `openspec/changes/<change>/exploration.md` |
+| `<change>/proposal` | `openspec/changes/<change>/proposal.md` |
+| `<change>/spec/<capability>` | `openspec/changes/<change>/specs/<capability>/spec.md` |
+| `<change>/clarify` | `openspec/changes/<change>/clarifications.md` |
+| `<change>/design` | `openspec/changes/<change>/design.md` |
+| `<change>/blast-radius` | `openspec/changes/<change>/blast-radius.md` |
+| `<change>/tasks` | `openspec/changes/<change>/tasks.md` |
+| `<change>/estimate` | `openspec/changes/<change>/estimate.md` |
+| `<change>/apply-progress` | `openspec/changes/<change>/apply-progress.md` |
+| `<change>/drift` | `openspec/changes/<change>/drift-report.md` |
+| `<change>/security` | `openspec/changes/<change>/security-report.md` (standalone, no change: report inline) |
+| `<change>/verify-report` | `openspec/changes/<change>/verify-report.md` |
+| `<change>/archive-report` | `openspec/changes/<change>/archive-report.md` |
 
-Rules: read-before-write (update, never blind overwrite); archived changes under
-`openspec/changes/archive/YYYY-MM-DD-<change>/` are immutable.
+## Archive finalization (files backend only)
+
+After the orchestrator SAVEs `<change>/state` with `status: archived`, move the
+folder: `openspec/changes/<change>/` → `openspec/changes/archive/<archived_on>-<change>/`
+(create `archive/` if missing; `mv`).
+
+Resolution rule: when `openspec/changes/<change>/` is absent, LOAD and LIST resolve
+`<change>/...` inside the archived folder whose name is EXACTLY
+`<YYYY-MM-DD>-<change>` (fixed 10-character date prefix, then `-`, then the full
+change name — never a loose `*-<change>` glob, which would also match
+`2026-09-23-bar-<change>`), read-only. If several dates match, the most recent
+wins. Active-change listing is `openspec/changes/*/` excluding `archive/`.
+
+Name reuse: a change name that exists as an active folder or as an archived folder
+is taken. `new` must reject it and ask for a different name. `archive` is reserved
+(it is the archive directory).
+
+Rules: read-before-write (update, never blind overwrite); archived changes are
+immutable — SAVE into an archived folder is refused.
 
 ---
 
 # Persistence backend: SQLite (local file)
 
 Single local database, zero network, no MCP required. Good middle ground:
-cross-session recovery like Engram, but portable with the machine and greppable.
+cross-session recovery like a memory server, but portable with the machine and greppable.
 
 ## Operations
 
@@ -401,7 +467,13 @@ LIST(prefix):       SELECT key, updated_at FROM sdd_artifacts
 
 Invoke via `sqlite3 openspec/.sdd-store.db "<sql>"`. Content with quotes: pass
 through a temp file (`sqlite3 db ".read tmp.sql"`) or use parameter support if
-available. Key slashes are kept verbatim (keys are plain TEXT).
+available. Key slashes are kept verbatim (keys are plain TEXT): every logical key
+in interface.md — `config`, `steering/<name>`, `specs/<capability>`,
+`<change>/state`, `<change>/spec/<capability>` — is stored as-is, no mapping.
+`config` is a mirror only; the file copy stays authoritative (interface.md
+Bootstrap). Active changes: `SELECT key FROM sdd_artifacts WHERE key LIKE '%/state'`
+minus rows whose content has `status: archived`. Archiving needs no extra step —
+the `status: archived` flag is the archive.
 
 ## Setup (one-time, on first SAVE)
 
@@ -437,8 +509,13 @@ LIST(prefix):
   <exact command/tool call>
 ```
 
-Key sanitization: `<change>/<type>` maps to
+Key sanitization: every logical key in interface.md (including `config`,
+`steering/<name>`, `specs/<capability>`, `<change>/state`,
+`<change>/spec/<capability>`) maps to
 <how slashes/namespacing are handled in this store>.
+
+Archiving: `status: archived` in `<change>/state` is the archive; state here only
+what extra relocation this store performs, if any ("none" is fine).
 
 ## Setup (one-time)
 

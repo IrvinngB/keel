@@ -10,17 +10,16 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Write `openspec/changes/<change-name>/proposal.md` (create the folder if needed;
-read and update if the file exists). Return envelope: `status`,
+SAVE `<change-name>/proposal` (LOAD and update if it exists). Return envelope: `status`,
 `executive_summary`, `artifacts`, `next_recommended`, `risks`.
 
 ## Steps
 
-1. Read `openspec/changes/<change-name>/exploration.md` if present — use its
+1. LOAD `<change-name>/explore` if present — use its
    recommendation as the starting point.
-2. Load project context if present: `openspec/config.yaml`,
-   `openspec/steering/product.md`, `CLAUDE.md`/`AGENTS.md`.
-3. Research `openspec/specs/` to learn existing capability names; skim affected code
+2. Load project context if present: `config`,
+   `steering/product`, `CLAUDE.md`/`AGENTS.md`.
+3. Research `specs/*` to learn existing capability names; skim affected code
    so scope is grounded in reality.
 4. Write the proposal using the template below.
 

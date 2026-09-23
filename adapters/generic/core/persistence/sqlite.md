@@ -1,7 +1,7 @@
 # Persistence backend: SQLite (local file)
 
 Single local database, zero network, no MCP required. Good middle ground:
-cross-session recovery like Engram, but portable with the machine and greppable.
+cross-session recovery like a memory server, but portable with the machine and greppable.
 
 ## Operations
 
@@ -15,7 +15,13 @@ LIST(prefix):       SELECT key, updated_at FROM sdd_artifacts
 
 Invoke via `sqlite3 openspec/.sdd-store.db "<sql>"`. Content with quotes: pass
 through a temp file (`sqlite3 db ".read tmp.sql"`) or use parameter support if
-available. Key slashes are kept verbatim (keys are plain TEXT).
+available. Key slashes are kept verbatim (keys are plain TEXT): every logical key
+in interface.md — `config`, `steering/<name>`, `specs/<capability>`,
+`<change>/state`, `<change>/spec/<capability>` — is stored as-is, no mapping.
+`config` is a mirror only; the file copy stays authoritative (interface.md
+Bootstrap). Active changes: `SELECT key FROM sdd_artifacts WHERE key LIKE '%/state'`
+minus rows whose content has `status: archived`. Archiving needs no extra step —
+the `status: archived` flag is the archive.
 
 ## Setup (one-time, on first SAVE)
 

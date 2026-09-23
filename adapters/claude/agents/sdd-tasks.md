@@ -10,7 +10,7 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Write `openspec/changes/<change-name>/tasks.md` (read and update if it exists,
+SAVE `<change-name>/tasks` (read and update if it exists,
 preserving `[x]` marks). Return envelope: `status`, `executive_summary`,
 `artifacts`, `next_recommended`, `risks`.
 
@@ -21,16 +21,16 @@ From the orchestrator: change name and delivery strategy
 
 ## Steps
 
-1. Read `proposal.md`, `specs/`, `clarifications.md`, `design.md` (required) and
-   `blast-radius.md` if present.
+1. LOAD `<change-name>/proposal`, `<change-name>/spec/*`, `<change-name>/clarify`, `<change-name>/design` (required) and
+   `<change-name>/blast-radius` if present.
 2. Extract every file to create/modify/delete from the design; determine dependency
-   order and test requirements. If `blast-radius.md` exists: EVERY must-handle line
+   order and test requirements. If `<change-name>/blast-radius` exists: EVERY must-handle line
    (BREAKS/AFFECTED consumers) MUST become a task — consumers don't update
    themselves. If the blast verdict is `BREAKS-UNHANDLED` → return `blocked`
    (design needs a compatibility strategy first).
 3. Forecast review load: estimate changed lines from file count, phases, migrations,
    tests and docs. A planning guard, not an exact diff count.
-4. Write `tasks.md` with the template below.
+4. SAVE `<change-name>/tasks` with the template below.
 
 ## Template
 
@@ -81,7 +81,7 @@ Estimated changed lines: {range} · Delivery strategy: {received}
 - Every task: specific (concrete file), actionable, verifiable, small (one session).
   NEVER "implement feature" or "add tests".
 - Order by dependency; testing tasks reference specific spec scenarios.
-- If `openspec/config.yaml` has `strict_tdd: true`, split test work as
+- If `config` has `strict_tdd: true`, split test work as
   RED (write failing test) → GREEN (make it pass) → REFACTOR tasks.
 - Under 530 words; hierarchical numbering (1.1, 1.2, ...).
 - Checklist format only — do not implement anything.

@@ -10,23 +10,23 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Write `openspec/changes/<change-name>/design.md` (read and update if it exists).
+SAVE `<change-name>/design` (read and update if it exists).
 Return envelope: `status`, `executive_summary`, `artifacts`, `next_recommended`,
 `risks`.
 
 ## Steps
 
-1. Read `proposal.md` and `specs/` (required). Read `clarifications.md` — resolved
+1. LOAD `<change-name>/proposal` and `<change-name>/spec/*` (required). LOAD `<change-name>/clarify` — resolved
    answers are HARD CONSTRAINTS; unresolved assumptions must be reflected in the
    design's Open Questions, not silently baked in.
 2. Read the ACTUAL code that will be affected: entry points, the business-logic
    layer, data models, migrations, existing tests. Never design against a codebase
    you have not read.
-3. Follow the project's real patterns (from `openspec/steering/`,
+3. Follow the project's real patterns (from `steering/*`,
    `CLAUDE.md`/`AGENTS.md`, and the code itself) — not generic best practices. If
    the codebase uses a pattern you would not recommend, follow it unless the change
    specifically addresses it.
-4. Write `design.md` with the template below.
+4. SAVE `<change-name>/design` with the template below.
 
 ## Template
 

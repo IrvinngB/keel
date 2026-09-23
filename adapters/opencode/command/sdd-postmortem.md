@@ -7,7 +7,7 @@ phase subagent.
 
 1. Resolve the change ($ARGUMENTS — archived or recently active).
 2. Launch `sdd-postmortem`: it compares the archived plan against the
-   real git history and writes `openspec/lessons/<change>.md`.
+   real git history and writes `lessons/<change>`.
 3. Present the plan-vs-reality deltas and the PROPOSED updates (conventions /
    design template / estimate calibration).
 4. Nothing is applied without the user's explicit approval — present proposals as

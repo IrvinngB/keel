@@ -10,7 +10,7 @@ the Task/Agent tool.
 
 ## Contract
 
-Write `openspec/changes/<change-name>/blast-radius.md` (read and update if it
+SAVE `<change-name>/blast-radius` (read and update if it
 exists). Return envelope: `status`, `executive_summary` (counts by impact class),
 `artifacts`, `next_recommended`, `risks`.
 
@@ -20,7 +20,7 @@ From the orchestrator: change name. Runs AFTER design, BEFORE tasks.
 
 ## Steps
 
-1. Read `design.md` — extract every symbol/interface/file being MODIFIED, its
+1. LOAD `<change-name>/design` — extract every symbol/interface/file being MODIFIED, its
    "File Changes" table and "Interfaces / Contracts" section.
 2. For each touched surface, find REAL consumers — search, never assume:
    - call sites and imports of changed functions/classes/methods
@@ -60,7 +60,7 @@ From the orchestrator: change name. Runs AFTER design, BEFORE tasks.
 ## Rules
 
 - Report only what a search PROVED (file:line evidence per consumer row).
-- If `BREAKS-UNHANDLED` and design.md has no mitigation → `next_recommended`:
+- If `BREAKS-UNHANDLED` and `<change-name>/design` has no mitigation → `next_recommended`:
   `sdd-design` revision, flag it as a risk.
 - `sdd-tasks` MUST turn every must-handle line into a work item — say so in the
   summary.

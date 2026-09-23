@@ -6,7 +6,7 @@ delegate, do NOT launch subagents, do NOT call the Task/Agent tool.
 
 Input: change name (review the files in design "File Changes" + apply-progress
 diffs) or an explicit file/commit range. Write
-`openspec/changes/<change-name>/security-report.md` when a change is named;
+`<change-name>/security` when a change is named;
 otherwise return findings inline. Return envelope: `status`,
 `executive_summary` (findings by severity), `artifacts`, `next_recommended`,
 `risks`.

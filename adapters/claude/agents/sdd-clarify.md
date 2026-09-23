@@ -11,15 +11,15 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Write `openspec/changes/<change-name>/clarifications.md` (read and update if it
+SAVE `<change-name>/clarify` (read and update if it
 exists). Return envelope: `status`, `executive_summary`, `artifacts`,
 `next_recommended`, `risks`. Set `open_questions` count in your summary so the
 orchestrator can surface it.
 
 ## Steps
 
-1. Read `proposal.md`, all `specs/*/spec.md`, and `exploration.md` (if present).
-2. Load project context if present: `openspec/config.yaml`, `openspec/steering/`.
+1. LOAD `<change-name>/proposal`, all `<change-name>/spec/*`, and `<change-name>/explore` (if present).
+2. Load project context if present: `config`, `steering/*`.
 3. Hunt for these classes of gaps in the SPEC (not the prose — the behavior):
 
 | Gap class | What to look for |
@@ -33,7 +33,7 @@ orchestrator can surface it.
 
 4. For each gap, write ONE pointed question. Max 7 questions — pick the ones that
    would force rework if wrong. Rank by blast radius.
-5. Write `clarifications.md`.
+5. SAVE `<change-name>/clarify`.
 
 ## Format
 

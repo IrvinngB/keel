@@ -14,42 +14,49 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Write `archive-report.md` inside the change folder, then move the whole folder to
-`openspec/changes/archive/YYYY-MM-DD-<change-name>/`. Return envelope: `status`,
-`executive_summary`, `artifacts`, `next_recommended`, `risks`.
+SAVE `<change-name>/archive-report` after merging the change's delta specs into the
+main specs. You do NOT move anything and you do NOT SAVE `<change-name>/state` — the
+orchestrator marks the change archived (`status: archived`, `archived_on`) after you
+return, and a backend with directories finalizes its layout then. Return envelope:
+`status`, `executive_summary`, `artifacts`, `next_recommended`, `risks`.
 
 ## Steps
 
-1. Read ALL artifacts of `openspec/changes/<change-name>/`: proposal, specs/,
-   clarifications, design, tasks, apply-progress, verify-report.
-2. **Gate**: if `verify-report.md` is missing or its verdict is `FAIL` (or has open
-   CRITICAL issues) → STOP, return `blocked`.
-3. Sync delta specs into `openspec/specs/` (create dirs/files as needed):
-   - `## ADDED Requirements` → append to the main spec's Requirements
+1. LOAD ALL artifacts of `<change-name>`: `<change-name>/proposal`, every
+   `<change-name>/spec/*` (LIST the prefix), `<change-name>/clarify`,
+   `<change-name>/design`, `<change-name>/tasks`, `<change-name>/apply-progress`,
+   `<change-name>/verify-report`.
+2. **Gate**: if `<change-name>/verify-report` is missing or its verdict is `FAIL` (or
+   has open CRITICAL issues) → STOP, return `blocked`.
+3. **Re-entrancy**: if `<change-name>/archive-report` already exists, a previous run
+   finished the merge — SKIP this step and step 4, and go to step 5. Otherwise sync
+   each `<change-name>/spec/<capability>` delta into `specs/<capability>`
+   (LOAD the main spec if it exists, merge, SAVE). A run interrupted mid-merge must
+   be safe to retry, so dedupe by `### Requirement:` name:
+   - `## ADDED Requirements` → append to the main spec's Requirements ONLY if no
+     requirement with that `### Requirement:` name exists yet; if it exists,
+     REPLACE it instead (never append a second copy)
    - `## MODIFIED Requirements` → REPLACE the matching requirement block (match by
      `### Requirement:` name), keeping everything else intact
    - `## REMOVED Requirements` → delete the matching block
-   - New capability (no existing main spec) → copy the full spec to
-     `openspec/specs/<capability>/spec.md`
+   - New capability (no existing main spec) → SAVE the full spec as
+     `specs/<capability>`
    - If a merge would delete large sections → STOP and ask for confirmation.
-4. Write `archive-report.md`:
+4. SAVE `<change-name>/archive-report`:
    ```markdown
    # Archive Report: {Change Title}
    - Verdict: {verify verdict}
    - Tasks: {N}/{N} complete
    - Capabilities synced: {list with added/modified/removed counts}
-   - Artifacts: {files in the change folder}
+   - Artifacts: {keys of the change}
    - Completed: {YYYY-MM-DD}
    ```
-5. Move the folder with today's ISO date: `openspec/changes/<change>/` →
-   `openspec/changes/archive/YYYY-MM-DD-<change>/` (create `archive/` if missing;
-   `mv` via Bash).
-6. Verify: main specs updated, folder moved, active `changes/` no longer contains
-   it, archive holds every artifact.
+5. Verify by LOAD: each synced `specs/<capability>` contains the merged
+   requirements, and `<change-name>/archive-report` reads back in full.
 
 ## Rules
 
-- Sync BEFORE moving. Always.
+- Sync BEFORE the change is marked archived. Always.
 - Preserve requirements not mentioned in the delta.
 - The archive is an audit trail — never delete or modify archived changes.
 - In `next_recommended`, always suggest `sdd-postmortem` (learn from the closed

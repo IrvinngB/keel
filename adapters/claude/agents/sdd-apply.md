@@ -10,8 +10,8 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Update `openspec/changes/<change-name>/tasks.md` (`[x]` marks) and write
-`apply-progress.md` there (read and MERGE if it exists — never overwrite).
+Update `<change-name>/tasks` (`[x]` marks) and write
+`<change-name>/apply-progress` there (read and MERGE if it exists — never overwrite).
 Return envelope: `status`, `executive_summary`, `artifacts`, `next_recommended`,
 `risks`.
 
@@ -23,26 +23,26 @@ single PR) when applicable.
 
 ## Steps
 
-0. **Project conventions**: read `openspec/config.yaml` (stack, testing commands,
-   `strict_tdd`), `openspec/steering/` and the project's `CLAUDE.md`/`AGENTS.md`.
+0. **Project conventions**: read `config` (stack, testing commands,
+   `strict_tdd`), `steering/*` and the project's `CLAUDE.md`/`AGENTS.md`.
    Follow the conventions of the module being touched. If the project ships
    stack-expert agents (e.g. a language-specific reviewer), the orchestrator will
    have injected their rules — apply them strictly.
-1. Read `tasks.md`, `specs/`, `clarifications.md`, `design.md` (required).
-2. **Workload gate**: if tasks.md says `Decision needed before apply: Yes`,
+1. LOAD `<change-name>/tasks`, `<change-name>/spec/*`, `<change-name>/clarify`, `<change-name>/design` (required).
+2. **Workload gate**: if `<change-name>/tasks` says `Decision needed before apply: Yes`,
    `Chained PRs recommended: Yes`, or `400-line budget risk: High` and the prompt
    contains NO resolved decision → STOP, return `blocked` with "Workload decision
    required before apply". If chained: implement ONLY the assigned work unit and
    honor the chain strategy for branch targeting.
-3. **Previous progress**: if `apply-progress.md` exists, read it, skip
+3. **Previous progress**: if `<change-name>/apply-progress` exists, read it, skip
    already-completed tasks, and MERGE when saving.
-4. **TDD mode**: from `openspec/config.yaml` `strict_tdd`. If `true` → follow
+4. **TDD mode**: from `config` `strict_tdd`. If `true` → follow
    Strict TDD below. If `false`/missing → standard flow (implement, then verify).
 5. For each assigned task: read its spec scenarios (acceptance criteria), the
-   design constraints, `blast-radius.md` (consumer updates are IN scope for your
+   design constraints, `<change-name>/blast-radius` (consumer updates are IN scope for your
    unit — not freelancing), existing code patterns → write the code → mark `- [x]`
-   in `tasks.md` immediately → note deviations.
-6. Write/update `apply-progress.md` (cumulative): completed tasks, files changed,
+   in `<change-name>/tasks` immediately → note deviations.
+6. Write/update `<change-name>/apply-progress` (cumulative): completed tasks, files changed,
    deviations, issues, remaining tasks, PR boundary note, and (TDD) the evidence
    table.
 
@@ -53,13 +53,13 @@ single PR) when applicable.
 - Cycle per task: SAFETY NET (run existing tests for files you touch; pre-existing
   failures → report, don't fix) → RED (failing test referencing code that doesn't
   exist yet, matching the project's test conventions) → GREEN (run the FOCUSED test
-  via the command in `openspec/config.yaml` testing section; fix implementation,
+  via the command in `config` testing section; fix implementation,
   not the test) → TRIANGULATE (≥2 real cases per behavior: happy path + edge) →
   REFACTOR (tests stay green after each step).
 - NEVER trivial assertions: no tautologies, no bare not-null checks, no asserting
   UI/style internals, no assertions inside loops that may run zero times. Every
   assertion calls production code and asserts a specific expected value.
-- Produce a **TDD Cycle Evidence** table in apply-progress.md:
+- Produce a **TDD Cycle Evidence** table in `<change-name>/apply-progress`:
   `| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |`
 - No silent fallback: if TDD is active and a task couldn't follow it, mark that
   task FAILED in the evidence table.

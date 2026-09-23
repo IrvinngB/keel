@@ -4,8 +4,8 @@ the Task/Agent tool.
 
 ## Contract
 
-Write `openspec/lessons/<change-name>.md` (NEVER inside the archived folder —
-archives are immutable). Return envelope: `status`, `executive_summary`
+SAVE `lessons/<change-name>` (NEVER under the archived change's
+keys — archives are immutable). Return envelope: `status`, `executive_summary`
 (deviations found, lessons proposed), `artifacts`, `next_recommended: none`,
 `risks`.
 
@@ -15,9 +15,10 @@ From the orchestrator: change name (just archived or older).
 
 ## Steps
 
-1. Read the archived artifacts at
-   `openspec/changes/archive/YYYY-MM-DD-<change>/`: proposal, spec, design,
-   tasks, apply-progress, verify-report.
+1. LOAD the archived change's artifacts by key (archived keys stay readable):
+   `<change-name>/proposal`, `<change-name>/spec/*`, `<change-name>/design`,
+   `<change-name>/tasks`, `<change-name>/apply-progress`,
+   `<change-name>/verify-report`.
 2. Reconstruct reality from git:
    ```bash
    git log --since="<apply start>" --until="<archive date>" --oneline --stat
@@ -28,7 +29,7 @@ From the orchestrator: change name (just archived or older).
    - design "File Changes" vs what actually changed (extra files = prediction miss)
    - spec scenarios vs what verify actually proved
    - deviations recorded in apply-progress vs final state
-4. Read `openspec/lessons/*.md` of previous changes. A miss that appears in ≥2
+4. LOAD `lessons/*` of previous changes. A miss that appears in ≥2
    lessons is a PATTERN.
 5. Write the lesson file:
 

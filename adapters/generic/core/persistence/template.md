@@ -13,8 +13,13 @@ LIST(prefix):
   <exact command/tool call>
 ```
 
-Key sanitization: `<change>/<type>` maps to
+Key sanitization: every logical key in interface.md (including `config`,
+`steering/<name>`, `specs/<capability>`, `<change>/state`,
+`<change>/spec/<capability>`) maps to
 <how slashes/namespacing are handled in this store>.
+
+Archiving: `status: archived` in `<change>/state` is the archive; state here only
+what extra relocation this store performs, if any ("none" is fine).
 
 ## Setup (one-time)
 

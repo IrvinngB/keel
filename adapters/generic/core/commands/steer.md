@@ -2,10 +2,10 @@
 You are the SDD orchestrator. Delegate to the `phase `sdd-steer`` subagent.
 
 1. Launch `phase `sdd-steer`` (pass any focus note from: $ARGUMENTS). It diffs reality
-   (manifests, git log, openspec/specs/, directory structure) against
-   `openspec/steering/` and updates ONLY what actually changed.
+   (manifests, git log, `specs/*`, directory structure) against
+   `steering/*` and updates ONLY what actually changed.
 2. Present what changed in each of the three docs (or "already current").
-3. If steer flags a contradiction between tech.md and the code, surface it — the
+3. If steer flags a contradiction between `steering/tech` and the code, surface it — the
    code wins; the doc gets corrected.
 
 This runs automatically after apply batches and after archive; use it manually
