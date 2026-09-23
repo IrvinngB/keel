@@ -7,9 +7,9 @@
   "plugins": [
     {
       "name": "sdd",
-      "source": "./",
-      "description": "Spec-Driven Development workflow with clarification gate, drift detection, steering docs, stack detection, security review, estimates and a tasks commit guard. Stack-agnostic.",
-      "version": "0.1.0",
+      "source": "./adapters/claude",
+      "description": "Spec-Driven Development workflow with clarification gate, blast-radius mapping, drift detection, steering docs, postmortem learning, stack detection, security review, estimates and a tasks commit guard. Stack-agnostic.",
+      "version": "0.2.0",
       "author": {
         "name": "Irvinng"
       },

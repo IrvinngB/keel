@@ -1,9 +1,0 @@
-{
-  "name": "sdd",
-  "description": "Spec-Driven Development: explore, propose, spec, clarify, design, tasks, apply, verify, archive — plus drift detection, steering docs, stack detection, security review, estimates and a commit guard. Stack-agnostic.",
-  "version": "0.1.0",
-  "author": {
-    "name": "Irvinng"
-  },
-  "license": "MIT"
-}

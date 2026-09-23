@@ -1,0 +1,244 @@
+{
+  "plugin": {
+    "name": "sdd",
+    "description": "Spec-Driven Development pipeline: explore→proposal→spec→clarify→design→blast-radius→tasks→apply→verify→archive with clarify gate, blast-radius mapping, drift detection, steering docs, postmortem learning, stack detection, security review, estimates, commit guard. Stack-agnostic.",
+    "version": "0.2.0",
+    "author": {
+      "name": "Irvinng"
+    },
+    "license": "MIT"
+  },
+  "skill": {
+    "name": "sdd-workflow",
+    "description": "Spec-Driven Development pipeline contract for this project. Read before running or coordinating any SDD command or phase subagent — defines the artifact layout, phase graph, workload guards, and steering docs."
+  },
+  "orchestrator": {
+    "description": "SDD pipeline orchestrator: routes phases to sdd subagents, owns state.yaml and the workload guard. Use as the primary agent for any Spec-Driven Development work."
+  },
+  "agents": {
+    "sdd-explore": {
+      "description": "Explore and investigate ideas before committing to a change. Use when asked to think through a feature, investigate a codebase, map modules, compare approaches, or clarify requirements — before any proposal or spec is written. Research only; the sole file it may write is exploration.md.",
+      "tools": [
+        "Read",
+        "Write",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-propose": {
+      "description": "Create a change proposal with intent, scope, and approach. Use when exploration is done (or the user described the change directly) and it must be formalized into a proposal document before specs.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-spec": {
+      "description": "Write delta specifications with requirements and Given/When/Then scenarios. Use when a proposal is approved and the change needs formal behavioral requirements before design and implementation.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-clarify": {
+      "description": "Detect ambiguities, hidden assumptions, and unverified claims in a spec before the design phase. Produces pointed questions (with recommended defaults) that force the uncomfortable decisions to the surface. Use between sdd-spec and sdd-design.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-design": {
+      "description": "Create the technical design document with architecture decisions, data flow, and file changes. Use after the spec and the clarify gate are done and the implementation approach must be chosen before task breakdown.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-tasks": {
+      "description": "Break a change into an implementation task checklist with a review workload forecast. Use when spec and design are ready and the change must be sliced into ordered, actionable work items before apply.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-apply": {
+      "description": "Implement code changes from the task checklist. Use when tasks are ready and code must be written following specs and design. Reads tasks/spec/design, implements, tests, and marks tasks complete.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-verify": {
+      "description": "Validate implementation against specs, design, and tasks with real test execution. Use when apply reports done (or partial) and the change must be proven compliant before archive.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-archive": {
+      "description": "Archive a completed and verified change: merge delta specs into main specs, move the change folder to the archive, persist the final report. Use after verification passes. Completes the SDD cycle.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-drift": {
+      "description": "Detect divergence between approved specs/design and the actual code — changes made outside sdd-apply, or specs that went stale. Compares git history of code files against artifact dates. Use before verify/archive, or anytime a change folder has been open for a while.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-security": {
+      "description": "Language-agnostic security review (OWASP-style checklist) of a change's diff or an explicit scope of files. Use standalone or from sdd-verify when security_review is on. Complements stack experts; covers what stack reviews tend to skip.",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
+    "sdd-estimate": {
+      "description": "Estimate complexity, time and risk per task from an existing tasks.md. Flags high-risk work (auth, payments, destructive migrations, public API changes). Use after sdd-tasks, before committing to a sprint or quoting work to a client.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "sdd-steer": {
+      "description": "Keep project-level steering docs (openspec/steering/product.md, tech.md, structure.md) in sync with reality. Use after apply batches and after archiving a change — prevents the project context from rotting between sessions.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ]
+    },
+    "stack-detector": {
+      "description": "Inspect a repository and produce a machine-usable stack profile: languages, frameworks, test runners and commands, lint/format/build commands, layers, and which project expert-agents fit. Use during sdd-init, or when config.yaml is missing or stale.",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
+    "sdd-blast-radius": {
+      "description": "Map every real consumer of the code about to change — call sites, routes, DB tables, published APIs, tests — before apply. Use after sdd-design and before sdd-tasks, or standalone to ask what breaks if X changes.",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
+    "sdd-postmortem": {
+      "description": "Compare an archived change's plan against the actual git history, extract lessons, and propose (never auto-apply) updates to steering docs. Use after sdd-archive — this is how the pipeline improves with use.",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ]
+    }
+  },
+  "commands": {
+    "apply": {
+      "description": "Implement tasks — write code following specs and design",
+      "argumentHint": "[change-name] [task range]"
+    },
+    "archive": {
+      "description": "Archive a verified change — sync delta specs into source of truth, close the cycle",
+      "argumentHint": "[change-name]"
+    },
+    "blast": {
+      "description": "Map every consumer of the code about to change — what breaks if we touch X?",
+      "argumentHint": "[change-name | symbol]"
+    },
+    "postmortem": {
+      "description": "Learn from a completed change — plan vs reality, proposed updates to steering",
+      "argumentHint": "[change-name]"
+    },
+    "clarify": {
+      "description": "Force the uncomfortable questions on a spec before design",
+      "argumentHint": "[change-name]"
+    },
+    "continue": {
+      "description": "Run the next dependency-ready SDD phase",
+      "argumentHint": "[change-name]"
+    },
+    "drift": {
+      "description": "Detect divergence between approved specs/design and the actual code",
+      "argumentHint": "[change-name]"
+    },
+    "estimate": {
+      "description": "Estimate complexity, time and risk per task from tasks.md",
+      "argumentHint": "[change-name]"
+    },
+    "explore": {
+      "description": "Explore and investigate an idea — reads the codebase, compares approaches",
+      "argumentHint": "<topic or feature to explore>"
+    },
+    "ff": {
+      "description": "Fast-forward planning — proposal, spec, clarify, design, blast-radius, tasks in sequence",
+      "argumentHint": "[change-name]"
+    },
+    "init": {
+      "description": "Initialize SDD in this project — detect stack, bootstrap openspec/ and steering docs",
+      "argumentHint": "[optional: stack override, e.g. \"use pnpm\"]"
+    },
+    "new": {
+      "description": "Start a new SDD change — exploration then proposal",
+      "argumentHint": "<change-name> [what you want to build]"
+    },
+    "security": {
+      "description": "Language-agnostic security review of a change's diff or a file range",
+      "argumentHint": "[change-name | commit-range | file-paths]"
+    },
+    "steer": {
+      "description": "Refresh project steering docs (product.md, tech.md, structure.md)",
+      "argumentHint": "[optional: focus note, e.g. \"new payment module landed\"]"
+    },
+    "verify": {
+      "description": "Validate implementation against specs, design, and tasks with real test runs",
+      "argumentHint": "[change-name]"
+    }
+  }
+}

@@ -1,0 +1,291 @@
+#!/usr/bin/env node
+'use strict';
+// sdd-kit CLI — build adapters, install them, inspect pipeline state. Zero deps.
+
+const fs = require('fs');
+const path = require('path');
+const cp = require('child_process');
+
+const ROOT = path.resolve(__dirname, '..');
+const args = process.argv.slice(2);
+const cmd = args[0];
+const flags = new Set(args.slice(1).filter((a) => a.startsWith('--')));
+const pos = args.slice(1).filter((a) => !a.startsWith('--'));
+const DRY = flags.has('--dry-run');
+
+function die(msg) { console.error(`sdd: ${msg}`); process.exit(1); }
+function say(...m) { console.log(...m); }
+
+const PHASES = [
+  ['explore', 'exploration.md'],
+  ['proposal', 'proposal.md'],
+  ['spec', 'specs'],
+  ['clarify', 'clarifications.md'],
+  ['design', 'design.md'],
+  ['blast-radius', 'blast-radius.md'],
+  ['tasks', 'tasks.md'],
+];
+// phase label → core/phases filename (generic mode reads these)
+const PHASE_FILE = {
+  explore: 'sdd-explore', proposal: 'sdd-propose', spec: 'sdd-spec', clarify: 'sdd-clarify',
+  design: 'sdd-design', 'blast-radius': 'sdd-blast-radius', tasks: 'sdd-tasks',
+  apply: 'sdd-apply', verify: 'sdd-verify', archive: 'sdd-archive',
+};
+
+function taskCounts(dir) {
+  const f = path.join(dir, 'tasks.md');
+  if (!fs.existsSync(f)) return null;
+  const t = fs.readFileSync(f, 'utf8');
+  const done = (t.match(/^[ \t]*- \[x\]/gmi) || []).length;
+  const pending = (t.match(/^[ \t]*- \[ \]/gmi) || []).length;
+  return { done, pending };
+}
+
+function stateOf(dir) {
+  const f = path.join(dir, 'state.yaml');
+  if (!fs.existsSync(f)) return {};
+  const out = {};
+  for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+    const m = line.match(/^([a-z_]+):\s*(.*)$/);
+    if (m) out[m[1]] = m[2].trim();
+  }
+  return out;
+}
+
+function activeChanges() {
+  const base = 'openspec/changes';
+  if (!fs.existsSync(base)) return [];
+  return fs.readdirSync(base, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name !== 'archive')
+    .map((d) => d.name);
+}
+
+function progress(dir) {
+  const done = PHASES.filter(([, f]) => fs.existsSync(path.join(dir, f))).map(([p]) => p);
+  if (done.length === PHASES.length) {
+    const t = taskCounts(dir);
+    if (t && t.pending === 0 && t.done > 0) done.push('apply');
+    if (fs.existsSync(path.join(dir, 'verify-report.md'))) done.push('verify');
+  }
+  return done;
+}
+
+function guardDecision(dir) {
+  const f = path.join(dir, 'tasks.md');
+  if (!fs.existsSync(f)) return '-';
+  const t = fs.readFileSync(f, 'utf8');
+  const m = t.match(/^Decision needed before apply: (\w+)/m);
+  if (!m) return '-';
+  if (m[1] === 'No') return 'none';
+  return /Chain strategy: (?!pending)/.test(t) ? 'resolved' : 'PENDING';
+}
+
+function dialect() {
+  const has = (p) => fs.existsSync(p);
+  if (has('.claude') || has('CLAUDE.md')) return { name: 'claude', next: '/sdd:continue' };
+  if (has('.opencode')) return { name: 'opencode', next: '/sdd-continue' };
+  if (has('.sdd') || has('AGENTS.md')) return { name: 'generic', next: 'read .sdd/core/phases/<next-phase>.md (single-phase mode)' };
+  return { name: 'none', next: '/sdd:continue', hint: '  (no adapter detected in this repo yet — sdd install <tool>)' };
+}
+
+function copyTree(src, dst) {
+  if (!fs.existsSync(src)) die(`missing ${src} — run: sdd build`);
+  let n = 0;
+  const walk = (s, d) => {
+    fs.mkdirSync(d, { recursive: true });
+    for (const e of fs.readdirSync(s, { withFileTypes: true })) {
+      const sp = path.join(s, e.name), dp = path.join(d, e.name);
+      if (e.isDirectory()) walk(sp, dp);
+      else {
+        if (DRY) say(`  would copy ${dp}`);
+        else fs.copyFileSync(sp, dp);
+        n++;
+      }
+    }
+  };
+  walk(src, dst);
+  return n;
+}
+
+function main() {
+  switch (cmd) {
+    case 'build':
+      cp.execFileSync(process.execPath, [path.join(ROOT, 'build', 'generate.js')], { stdio: 'inherit' });
+      return;
+
+    case 'install': {
+      const tool = pos[0];
+      const scope = flags.has('--project') ? 'project' : flags.has('--user') ? 'user' : null;
+      if (!tool) die('usage: sdd install <claude|opencode|generic> [--user|--project] [--dry-run]');
+      if (tool === 'claude') {
+        say('Claude Code installs plugins from the marketplace — run inside Claude Code:');
+        say('  /plugin marketplace add IrvinngB/sdd-kit');
+        say('  /plugin install sdd@sdd-kit');
+        say('local testing from this clone instead: /plugin marketplace add <path-to-sdd-kit>');
+        return;
+      }
+      if (tool === 'opencode') {
+        if (!scope) die('opencode needs --user or --project');
+        const base = scope === 'user'
+          ? path.join(process.env.HOME || '', '.config', 'opencode')
+          : path.join(process.cwd(), '.opencode');
+        const src = path.join(ROOT, 'adapters', 'opencode');
+        let total = 0;
+        for (const d of ['agent', 'command', 'skills']) total += copyTree(path.join(src, d), path.join(base, d));
+        say(`opencode (${scope}): ${DRY ? 'would install' : 'installed'} ${total} files → ${base}`);
+        say('note: existing same-named files were overwritten; others untouched.');
+        return;
+      }
+      if (tool === 'generic') {
+        if (scope === 'user') die('generic install is per-project (--project)');
+        const cwd = process.cwd();
+        const n = copyTree(path.join(ROOT, 'adapters', 'generic', 'core'), path.join(cwd, '.sdd', 'core'));
+        const block = path.join(ROOT, 'adapters', 'generic', 'AGENTS.block.md');
+        const agents = path.join(cwd, 'AGENTS.md');
+        const marker = 'sdd-kit generic block';
+        const existing = fs.existsSync(agents) ? fs.readFileSync(agents, 'utf8') : '';
+        if (!existing.includes(marker)) {
+          if (DRY) say(`  would append ${agents}`);
+          else fs.appendFileSync(agents, '\n' + fs.readFileSync(block, 'utf8'));
+        } else say('AGENTS.md already contains the sdd-kit block — skipped.');
+        say(`generic: ${DRY ? 'would install' : 'installed'} ${n} core files → .sdd/core/ + AGENTS.md binding`);
+        return runGuard('install');
+      }
+      die(`unknown tool "${tool}" — claude | opencode | generic`);
+    }
+
+    case 'status': {
+      const only = pos[0];
+      let changes = activeChanges();
+      if (only) changes = changes.filter((c) => c === only);
+      if (!changes.length) { say('No active changes (openspec/changes/).'); return; }
+      const rows = changes.map((c) => {
+        const dir = path.join('openspec', 'changes', c);
+        const t = taskCounts(dir);
+        return {
+          change: c,
+          phases: progress(dir).join('→') || '(empty)',
+          tasks: t ? `${t.done}/${t.done + t.pending}` : '-',
+          guard: guardDecision(dir),
+          state: stateOf(dir).current_phase || '-',
+        };
+      });
+      const w = Math.max(6, ...rows.map((r) => r.change.length));
+      say('CHANGE'.padEnd(w), 'PHASES'.padEnd(48), 'TASKS', 'GUARD', 'STATE');
+      for (const r of rows)
+        say(r.change.padEnd(w), r.phases.padEnd(48), r.tasks.padEnd(5), r.guard.padEnd(8), r.state);
+      say(`\nnext: ${dialect().next}${rows.some((r) => r.guard === 'PENDING') ? '  ⚠ a change needs a workload decision first' : ''}`);
+      return;
+    }
+
+    case 'next': {
+      const changes = activeChanges();
+      if (!changes.length) { const d = dialect(); die(`no active changes — start one: ${d.name === 'opencode' ? '/sdd-new' : d.name === 'generic' ? 'follow .sdd/core/commands/new.md' : '/sdd:new'} <change-name>`); }
+      const pick = pos[0] ? changes.filter((c) => c === pos[0]) : changes;
+      for (const c of pick) {
+        const dir = path.join('openspec', 'changes', c);
+        const done = progress(dir);
+        // explore is optional once anything after it exists
+        const missing = PHASES.filter(([p]) => !done.includes(p))
+          .filter(([p]) => !(p === 'explore' && done.some((d) => d !== 'explore')));
+        const nxt = missing[0];
+        let target;
+        if (nxt) target = nxt[1] === 'specs' ? 'spec' : nxt[0];
+        else if (!done.includes('apply')) target = 'apply';
+        else if (!done.includes('verify')) target = 'verify';
+        else if (!fs.existsSync(path.join(dir, 'verify-report.md'))) target = 'verify';
+        else target = 'archive';
+        const d = dialect();
+        const guard = guardDecision(dir);
+        if (target === 'apply' && guard === 'PENDING')
+          say(`${c}: workload decision pending — resolve it (chained PRs vs size:exception) BEFORE apply.`);
+        say(d.name === 'generic'
+          ? `${c}: next phase = ${target} → read .sdd/core/phases/${PHASE_FILE[target]}.md (single-phase mode)`
+          : `${c}: next phase = ${target} → run ${d.next} ${c}${d.hint || ''}`);
+      }
+      return;
+    }
+
+    case 'doctor': {
+      const home = process.env.HOME || '';
+      const tools = [
+        ['claude', [path.join(home, '.claude')]],
+        ['opencode', [path.join(home, '.config', 'opencode')]],
+        ['codex', [path.join(home, '.codex')]],
+        ['gemini', [path.join(home, '.gemini')]],
+      ];
+      say('detected agent installs:');
+      for (const [t, ps] of tools) say(`  ${t.padEnd(9)}${ps.some(fs.existsSync) ? 'found' : '—'}`);
+      say(`\nproject: ${process.cwd()}`);
+      say(`  openspec/            ${fs.existsSync('openspec') ? 'yes' : 'NO — run /sdd:init'}`);
+      say(`  active changes       ${activeChanges().length}`);
+      const hook = path.join('.git', 'hooks', 'pre-commit');
+      const installed = fs.existsSync(hook) && fs.readFileSync(hook, 'utf8').includes('sdd-kit commit guard');
+      say(`  commit guard         ${installed ? 'installed' : 'NOT installed — sdd guard install'}`);
+      say(`  dialect in use       ${dialect().name}`);
+      return;
+    }
+
+    case 'guard':
+      return runGuard(pos[0] || 'install');
+
+    case undefined:
+    case 'help':
+      say(`sdd-kit — Spec-Driven Development for any coding agent
+
+  sdd build                          regenerate adapters/ from core/
+  sdd install claude                 print marketplace install commands
+  sdd install opencode --user|--project
+  sdd install generic --project      .sdd/core/ + AGENTS.md + commit guard
+  sdd status [change]                pipeline state of active changes (no tokens)
+  sdd next [change]                  next phase + exact command for this repo
+  sdd doctor                         detected tools, openspec/, guards
+  sdd guard install|remove           universal git pre-commit guard`);
+      return;
+
+    default:
+      die(`unknown command "${cmd}" — sdd help`);
+  }
+}
+
+function runGuard(action) {
+  const dir = path.join('.git', 'hooks');
+  if (!fs.existsSync(dir)) die('not a git repository (no .git/hooks)');
+  const target = path.join(dir, 'pre-commit');
+  const marker = '# sdd-kit commit guard v2';
+  const CHAIN_START = '# --- chained original pre-commit ---';
+  const CHAIN_END = '# --- end chain ---';
+  const chainRe = /# --- chained original pre-commit ---\n([\s\S]*?)\n# --- end chain ---/;
+  if (action === 'remove') {
+    if (fs.existsSync(target) && fs.readFileSync(target, 'utf8').includes(marker)) {
+      const m = fs.readFileSync(target, 'utf8').match(chainRe);
+      if (m) {
+        fs.writeFileSync(target, '#!/bin/sh\n' + m[1] + '\n', { mode: 0o755 });
+        say('commit guard removed — original chained pre-commit restored.');
+      } else { fs.rmSync(target); say('commit guard removed.'); }
+    } else say('no sdd-kit guard found at .git/hooks/pre-commit');
+    return;
+  }
+  const template = fs.readFileSync(path.join(ROOT, 'hooks', 'pre-commit'), 'utf8');
+  let chain = null;
+  if (fs.existsSync(target)) {
+    const cur = fs.readFileSync(target, 'utf8');
+    const m = cur.match(chainRe);
+    if (m) chain = m[1]; // reinstall: preserve the user's original
+    else if (cur.includes(marker)) {
+      fs.writeFileSync(target, template, { mode: 0o755 });
+      say('commit guard updated.');
+      return;
+    } else chain = cur.split('\n').filter((l) => !l.startsWith('#!')).join('\n');
+  }
+  let content = template;
+  if (chain && chain.trim()) {
+    // chain runs AFTER all guard checks, just before the final exit
+    content = template.replace(/exit 0\n$/, () => `${CHAIN_START}\n${chain}\n${CHAIN_END}\n\nexit 0\n`);
+    say('existing pre-commit detected — chained to run after the guard checks.');
+  }
+  fs.writeFileSync(target, content, { mode: 0o755 });
+  say('commit guard installed → .git/hooks/pre-commit');
+}
+
+main();

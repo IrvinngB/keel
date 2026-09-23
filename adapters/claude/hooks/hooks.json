@@ -1,0 +1,17 @@
+{
+  "description": "SDD commit guard: blocks git commit while active changes have unchecked tasks",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/tasks-guard.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

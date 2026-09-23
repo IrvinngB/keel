@@ -1,0 +1,71 @@
+#!/bin/sh
+# sdd-kit commit guard v2
+# Universal git pre-commit hook — works with ANY agent or human.
+#
+# 1. Blocks `git commit` while an ACTIVE change (openspec/changes/<c>/tasks.md)
+#    has unchecked tasks.
+# 2. Dependency audit: warns when lockfiles are staged; blocks with
+#    SDD_DEPS_STRICT=1 if an active change's apply-progress.md does not record
+#    "dependencies:".
+#
+# Bypass (deliberate):  SDD_ALLOW_COMMIT=1 git commit -m "..."
+# Exit: 0 = allow, 1 = block.
+
+[ "${SDD_ALLOW_COMMIT}" = "1" ] && exit 0
+[ -d "openspec/changes" ] || exit 0
+
+# --- 1. unchecked tasks -------------------------------------------------------
+offenders=""
+for tasks in openspec/changes/*/tasks.md; do
+  [ -f "$tasks" ] || continue
+  # defense in depth: single-level glob never descends into archive/
+  case "$tasks" in openspec/changes/archive/*) continue ;; esac
+  pending=$(grep -c '^[[:space:]]*- \[ \]' "$tasks" 2>/dev/null)
+  [ -n "$pending" ] || pending=0
+  if [ "$pending" -gt 0 ]; then
+    change=$(basename "$(dirname "$tasks")")
+    offenders="${offenders}  - ${change}: ${pending} unchecked task(s) (${tasks})
+"
+  fi
+done
+
+if [ -n "$offenders" ]; then
+  {
+    printf '%s\n' "sdd-kit commit guard: active change(s) still have unchecked tasks:"
+    printf '%s' "$offenders"
+    printf '\n%s\n' "Finish them (apply phase), or bypass deliberately: SDD_ALLOW_COMMIT=1 git commit ... (WIP, docs-only, chained-PR boundaries)"
+  } >&2
+  exit 1
+fi
+
+# --- 2. dependency audit (lockfiles) ------------------------------------------
+staged=$(git diff --cached --name-only 2>/dev/null)
+locks=""
+oldifs=$IFS; IFS='
+'
+for f in $staged; do
+  case "$f" in
+    package-lock.json|pnpm-lock.yaml|yarn.lock|composer.lock|npm-shrinkwrap.json|\
+    requirements*.txt|poetry.lock|uv.lock|Pipfile.lock|go.sum|Cargo.lock|Gemfile.lock|\
+    mix.lock|pubspec.lock) locks="$locks $f" ;;
+  esac
+done
+IFS=$oldifs
+
+if [ -n "$locks" ]; then
+  printf '%s\n' "sdd-kit dependency notice: lockfile(s) staged:$locks" >&2
+  printf '%s\n' "  → verify each added package is recorded in apply-progress.md (deps: name, purpose, license, overlap). Full audit: run the sdd-security review." >&2
+  if [ "${SDD_DEPS_STRICT}" = "1" ]; then
+    recorded=0
+    for ap in openspec/changes/*/apply-progress.md; do
+      [ -f "$ap" ] || continue
+      grep -qi 'dependenc' "$ap" && recorded=1
+    done
+    if [ "$recorded" = "0" ]; then
+      printf '%s\n' "BLOCKED (SDD_DEPS_STRICT=1): no active apply-progress.md records dependencies." >&2
+      exit 1
+    fi
+  fi
+fi
+
+exit 0

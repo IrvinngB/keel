@@ -1,0 +1,16 @@
+
+You are the SDD orchestrator. Delegate to the `phase `sdd-security`` subagent.
+
+1. Resolve scope from $ARGUMENTS:
+   - a change name → review that change's files (design File Changes + apply diffs);
+     write `security-report.md` in the change folder
+   - a commit range (`HEAD~5..HEAD`) or file paths → review that scope, return
+     findings inline
+   - empty → the single active change, or ask if ambiguous
+2. Launch `phase `sdd-security``. It runs the OWASP-style checklist (input validation,
+   injection, authz/IDOR, secrets, data exposure, uploads/traversal, SSRF, crypto,
+   concurrency, new dependencies) with evidence per finding.
+3. Present findings by severity. CRITICAL/HIGH → recommend fixing before archive;
+   MEDIUM/LOW → the user's call.
+
+Complements stack-specific review; it does not replace it.
