@@ -15,6 +15,13 @@
   "orchestrator": {
     "description": "SDD pipeline orchestrator: routes phases to sdd subagents, owns the change state and the workload guard. Use as the primary agent for any Spec-Driven Development work."
   },
+  "sharedSkillsDir": ".agents/skills",
+  "neutralInvoke": {
+    "cmd": "command `{name}`",
+    "agent": "phase `{name}`",
+    "skill": "{name}",
+    "args": "the user's arguments"
+  },
   "registry": {
     "claude": {
       "displayName": "Claude Code",
@@ -58,8 +65,8 @@
       "install": {
         "method": "plugin",
         "pluginCommands": [
-          "/plugin marketplace add IrvinngB/sdd-kit",
-          "/plugin install sdd@sdd-kit"
+          "/plugin marketplace add IrvinngB/keel",
+          "/plugin install sdd@keel"
         ]
       }
     },
@@ -70,7 +77,7 @@
         "agentDir",
         "commandDir"
       ],
-      "notes": "Docs confirm skills in .opencode/skills, .claude/skills and .agents/skills (global: ~/.config/opencode/skills) with a native skill tool. The agent/ and command/ dirs come from the previous release and were not re-checked against the docs.",
+      "notes": "Docs re-checked 2026-09-23: skills are discovered in .opencode/skills, .claude/skills and .agents/skills (project) and ~/.config/opencode/skills, ~/.claude/skills and ~/.agents/skills (global), with a native skill tool. The agent/ and command/ dirs come from the previous release and were not re-checked against the docs. Project scope installs its skills once in the shared .agents/skills dir; user scope keeps ~/.config/opencode/skills.",
       "detect": [
         "~/.config/opencode"
       ],
@@ -82,6 +89,7 @@
         "agent": "{name}",
         "skill": "{name}"
       },
+      "neutralSkills": true,
       "skillsRead": [
         ".opencode/skills",
         ".claude/skills",
@@ -121,7 +129,7 @@
             },
             {
               "from": "skills",
-              "to": ".opencode/skills"
+              "to": ".agents/skills"
             }
           ]
         },
@@ -150,7 +158,7 @@
       "unverifiedFields": [
         "subagents"
       ],
-      "notes": "Docs confirm skills in .agents/skills (repo) and ~/.agents/skills (user), invoked as $skill-name, and AGENTS.md read by default (global ~/.codex/AGENTS.md). Commands are emitted as skills; whether custom prompts are deprecated was not confirmed. opencode, Kimi and Gemini also read .agents/skills, so the skills written there are invocation-neutral (they name skills, never a `$`/`/` syntax); the Codex-specific invocation hint lives only in the AGENTS.md block.",
+      "notes": "Docs confirm skills in .agents/skills (repo) and ~/.agents/skills (user), invoked as $skill-name, and AGENTS.md read by default (global ~/.codex/AGENTS.md). Commands are emitted as skills; whether custom prompts are deprecated was not confirmed. Skill bodies are invocation-neutral (manifest.neutralInvoke) and installed once in the shared .agents/skills dir that opencode, Kimi and Gemini also read; the Codex-specific invocation syntax lives only in the AGENTS.md block.",
       "detect": [
         "~/.codex"
       ],
@@ -160,12 +168,7 @@
         "agent": "sdd-phase-{short}",
         "skill": "{name}"
       },
-      "invokeNeutral": {
-        "cmd": "the `sdd-{name}` skill",
-        "agent": "sdd-phase-{short}",
-        "skill": "{name}"
-      },
-      "sharedSkillsDir": ".agents/skills",
+      "neutralSkills": true,
       "skillsRead": [
         ".agents/skills"
       ],
@@ -222,7 +225,7 @@
         "subagents",
         "userContextFile"
       ],
-      "notes": "Docs confirm GEMINI.md is the default context file (AGENTS.md is only read if listed in context.fileName), custom commands as TOML in .gemini/commands with {{args}} and subdirectory namespacing (sdd/<name>.toml -> /sdd:<name>), and skills in .gemini/skills or ~/.gemini/skills (.agents/skills alias). The user-level GEMINI.md path and subagent support were not verified.",
+      "notes": "Docs confirm GEMINI.md is the default context file (AGENTS.md is only read if listed in context.fileName), custom commands as TOML in .gemini/commands with {{args}} and subdirectory namespacing (sdd/<name>.toml -> /sdd:<name>), and skills in .gemini/skills or ~/.gemini/skills (.agents/skills alias in both scopes; within a tier the alias wins over .gemini/skills; re-checked 2026-09-23). The user-level GEMINI.md path and subagent support were not verified. Project scope installs its skills once in the shared .agents/skills dir (commands stay in .gemini/commands); user scope keeps ~/.gemini/skills.",
       "detect": [
         "~/.gemini"
       ],
@@ -235,6 +238,7 @@
         "agent": "sdd-phase-{short}",
         "skill": "{name}"
       },
+      "neutralSkills": true,
       "skillsRead": [
         ".gemini/skills",
         ".agents/skills"
@@ -267,7 +271,7 @@
           "map": [
             {
               "from": "skills",
-              "to": ".gemini/skills"
+              "to": ".agents/skills"
             },
             {
               "from": "commands",
@@ -302,7 +306,7 @@
         "commands",
         "subagents"
       ],
-      "notes": "Docs confirm skills in .kimi/skills (also .claude/skills, .codex/skills, .agents/skills) and ~/.kimi/skills, invoked as /skill:<name>, flat .md skills allowed. That AGENTS.md is read as the project context file is inferred, not confirmed; no custom-command mechanism was verified, so commands are emitted as skills.",
+      "notes": "Docs re-checked 2026-09-23: skills in .kimi/skills, .claude/skills, .codex/skills (mutually exclusive brand group) plus .agents/skills (generic group), merged; user scope ~/.kimi/skills (brand) plus ~/.config/agents/skills or ~/.agents/skills (generic); invoked as /skill:<name>, flat .md skills allowed. That AGENTS.md is read as the project context file is inferred, not confirmed; no custom-command mechanism was verified, so commands are emitted as skills. Project scope installs its skills once in the shared .agents/skills dir; user scope keeps ~/.kimi/skills.",
       "detect": [
         "~/.kimi"
       ],
@@ -314,6 +318,7 @@
         "agent": "sdd-phase-{short}",
         "skill": "{name}"
       },
+      "neutralSkills": true,
       "skillsRead": [
         ".kimi/skills",
         ".claude/skills",
@@ -347,7 +352,7 @@
           "map": [
             {
               "from": "skills",
-              "to": ".kimi/skills"
+              "to": ".agents/skills"
             }
           ]
         },

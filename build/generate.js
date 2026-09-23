@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// sdd-kit generator: core/ (canonical, tool-agnostic markdown) + manifest.registry -> adapters/<agent>/
+// Keel generator: core/ (canonical, tool-agnostic markdown) + manifest.registry -> adapters/<agent>/
 // Agents are DATA (build/manifest.json "registry"); SKILL.md is the base output format.
 // Zero dependencies. Run: node build/generate.js
 
@@ -28,14 +28,25 @@ function fill(tpl, name) {
     .replace(/\{short\}/g, () => name.replace(/^sdd-/, ''));
 }
 
-// neutral=true: skills written to a directory other agents also read must not embed
-// this agent's invocation syntax, so registry.invokeNeutral replaces registry.invoke.
+// neutral=true: skill bodies are shared by every agent that reads the same skills dir, so
+// they use manifest.neutralInvoke; native syntax stays in context-file blocks and native files.
+// A placeholder the source already wraps in backticks is rendered without a second pair
+// when its template brings its own (e.g. "phase `{name}`"), so spans never nest.
+const PLACEHOLDER_WRAPPED = /(`?)\{\{(agent|cmd|skill):([a-z0-9-]+)\}\}(`?)/g;
+
 function resolve(text, id, neutral = false) {
   const r = REGISTRY[id];
-  const invoke = neutral && r.invokeNeutral ? r.invokeNeutral : r.invoke;
+  const n = manifest.neutralInvoke;
+  const invoke = neutral ? n : r.invoke;
   return text
-    .replace(PLACEHOLDER, (_, kind, name) => fill(invoke[kind], name))
-    .replace(/\$ARGUMENTS/g, () => r.args);
+    .replace(PLACEHOLDER_WRAPPED, (_, pre, kind, name, post) => {
+      const rendered = fill(invoke[kind], name);
+      if (!rendered.includes('`')) return pre + rendered + post;
+      // both sides wrapped: the template's own span replaces the source's; one side only:
+      // the source span keeps running (e.g. "`{{cmd:new}} <name>`"), so drop the template's.
+      return pre && post ? rendered : pre + (pre || post ? rendered.replace(/`/g, '') : rendered) + post;
+    })
+    .replace(/\$ARGUMENTS/g, () => (neutral ? n.args : r.args));
 }
 
 function read(p) {
@@ -189,13 +200,26 @@ function validateRegistry() {
     if ((e.phases.as === 'skill' || e.commands.as === 'skill') && !r.install.project && !r.install.user)
       fail(`registry.${id} emits skills but declares no install target`);
     if (r.skillsRead !== undefined && !Array.isArray(r.skillsRead)) fail(`registry.${id}.skillsRead must be an array`);
-    if (r.sharedSkillsDir) {
-      if (!r.invokeNeutral) fail(`registry.${id} writes a shared skills dir and needs invokeNeutral`);
-      for (const k of ['cmd', 'agent', 'skill'])
-        if (typeof r.invokeNeutral[k] !== 'string') fail(`registry.${id}.invokeNeutral.${k} must be a string`);
-      if (!(r.skillsRead || []).includes(r.sharedSkillsDir)) fail(`registry.${id}.skillsRead must include its sharedSkillsDir`);
-    }
+    if (r.neutralSkills) validateSkillsInstall(id, r);
   }
+}
+
+// Skills are installed ONCE: an agent that reads the shared dir must install its skills
+// there at project scope; an agent that does not keeps them in a dir it does read.
+function validateSkillsInstall(id, r) {
+  const shared = manifest.sharedSkillsDir;
+  const n = manifest.neutralInvoke;
+  if (!shared) fail('manifest.sharedSkillsDir is missing');
+  if (!n) fail('manifest.neutralInvoke is missing');
+  for (const k of ['cmd', 'agent', 'skill', 'args'])
+    if (typeof n[k] !== 'string') fail(`manifest.neutralInvoke.${k} must be a string`);
+  const map = (r.install.project && r.install.project.map) || [];
+  const skills = map.find((m) => m.from === 'skills');
+  if (!skills) return;
+  const reads = r.skillsRead || [];
+  if (reads.includes(shared) && skills.to !== shared)
+    fail(`registry.${id} reads ${shared} but installs its project skills to ${skills.to} (skills must be installed once, in the shared dir)`);
+  if (!reads.includes(skills.to)) fail(`registry.${id} installs project skills to ${skills.to}, which it does not read`);
 }
 
 function generate() {
@@ -269,7 +293,7 @@ function skillBody(id, { conventions, orchestrator, persistence }, neutral) {
 // One marked region per agent so several agents can share a context file (AGENTS.md)
 // and `sdd install` can replace exactly its own region on re-runs.
 function agentBlock(id, body) {
-  return `<!-- sdd-kit:begin agent=${id} -->\n${body.trim()}\n<!-- sdd-kit:end agent=${id} -->\n`;
+  return `<!-- keel:begin agent=${id} -->\n${body.trim()}\n<!-- keel:end agent=${id} -->\n`;
 }
 
 function emitAgent(id, ctx) {
@@ -285,7 +309,7 @@ function emitAgent(id, ctx) {
     if (skillNames.has(name)) fail(`registry.${id}: two outputs share the skill name "${name}"`);
     skillNames.add(name);
   };
-  const neutral = Boolean(r.sharedSkillsDir);
+  const neutral = Boolean(r.neutralSkills);
 
   write(
     path.join(out, e.workflowSkill, 'SKILL.md'),
@@ -383,7 +407,7 @@ Pipeline:
 - User-facing command contracts: \`.sdd/core/commands/*.md\` — adapt their steps to
   this tool's agent mechanism.
 
-CLI helpers (from the sdd-kit repo or a global \`sdd\`): \`sdd status\`, \`sdd next\`,
+CLI helpers (from the Keel repo or a global \`sdd\`): \`sdd status\`, \`sdd next\`,
 \`sdd doctor\`, \`sdd guard install\`.
 `;
 
@@ -393,14 +417,14 @@ const README_INSTALL = `# Generic install (any coding agent)
    placeholders) into your project as \`.sdd/core/\` (layout: \`orchestrator.md\`,
    \`conventions.md\`, \`phases/\`, \`commands/\`, \`persistence/\`).
 2. Append \`AGENTS.block.md\` (this folder) to your project's \`AGENTS.md\` — create
-   the file if absent. The block is wrapped in \`sdd-kit:begin/end agent=generic\`
+   the file if absent. The block is wrapped in \`keel:begin/end agent=generic\`
    markers; if they are already there, replace that region instead of appending.
    Agents that read another context file (for example \`GEMINI.md\`) need the same
    block appended there.
 3. Run \`sdd guard install\` in the project to install the commit guard
    (\`.git/hooks/pre-commit\` blocks commits while active changes have unchecked tasks).
 
-Or do all three at once from a clone of sdd-kit: \`sdd install generic --project\`
+Or do all three at once from a clone of Keel: \`sdd install generic --project\`
 (add \`--context-file=GEMINI.md\` for a second context file).
 Then tell your agent to read \`.sdd/core/orchestrator.md\` and start the pipeline.
 `;
@@ -429,13 +453,31 @@ function walk(dir, acc) {
   return acc;
 }
 
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Nested spans look like "`" + <template prefix> + "`": derive them from every invoke template.
+function nestedSpanRe() {
+  const prefixes = new Set(['command ', 'phase ']);
+  const templates = [...Object.values(manifest.neutralInvoke), ...Object.values(REGISTRY).flatMap((r) => Object.values(r.invoke))];
+  for (const t of templates) if (typeof t === 'string' && t.includes('`') && t.indexOf('`') > 0) prefixes.add(t.slice(0, t.indexOf('`')));
+  return new RegExp([...prefixes].map((p) => '`' + escapeRe(p) + '`').join('|'));
+}
+
 function verify() {
   const files = walk(BUILD, []);
+  const nested = nestedSpanRe();
   const bad = [];
+  const problems = [];
   for (const f of files) {
-    if (PLACEHOLDER_TEST.test(read(f))) bad.push(path.relative(BUILD, f));
+    const text = read(f);
+    const rel = path.relative(BUILD, f);
+    if (PLACEHOLDER_TEST.test(text)) bad.push(rel);
+    if (!f.endsWith('.md') && !f.endsWith('.toml')) continue;
+    if (nested.test(text)) problems.push(`nested backticks in ${rel}`);
+    if (!rel.startsWith('generic' + path.sep) && text.includes('`this document`')) problems.push(`"\`this document\`" outside generic in ${rel}`);
   }
   if (bad.length) fail(`unresolved placeholders in: ${bad.join(', ')}`);
+  if (problems.length) fail(`self-check failed:\n  ${problems.join('\n  ')}`);
   return files.length;
 }
 
