@@ -13,11 +13,11 @@
     "description": "Spec-Driven Development pipeline contract for this project. Read before running or coordinating any SDD command or phase subagent — defines the artifact layout, phase graph, workload guards, and steering docs."
   },
   "orchestrator": {
-    "description": "SDD pipeline orchestrator: routes phases to sdd subagents, owns state.yaml and the workload guard. Use as the primary agent for any Spec-Driven Development work."
+    "description": "SDD pipeline orchestrator: routes phases to sdd subagents, owns the change state and the workload guard. Use as the primary agent for any Spec-Driven Development work."
   },
   "agents": {
     "sdd-explore": {
-      "description": "Explore and investigate ideas before committing to a change. Use when asked to think through a feature, investigate a codebase, map modules, compare approaches, or clarify requirements — before any proposal or spec is written. Research only; the sole file it may write is exploration.md.",
+      "description": "Explore and investigate ideas before committing to a change. Use when asked to think through a feature, investigate a codebase, map modules, compare approaches, or clarify requirements — before any proposal or spec is written. Research only; the only artifact it may write is the change's explore key.",
       "tools": [
         "Read",
         "Write",
@@ -129,7 +129,7 @@
       ]
     },
     "sdd-estimate": {
-      "description": "Estimate complexity, time and risk per task from an existing tasks.md. Flags high-risk work (auth, payments, destructive migrations, public API changes). Use after sdd-tasks, before committing to a sprint or quoting work to a client.",
+      "description": "Estimate complexity, time and risk per task from an existing tasks artifact. Flags high-risk work (auth, payments, destructive migrations, public API changes). Use after sdd-tasks, before committing to a sprint or quoting work to a client.",
       "tools": [
         "Read",
         "Write",
@@ -139,7 +139,7 @@
       ]
     },
     "sdd-steer": {
-      "description": "Keep project-level steering docs (openspec/steering/product.md, tech.md, structure.md) in sync with reality. Use after apply batches and after archiving a change — prevents the project context from rotting between sessions.",
+      "description": "Keep project-level steering docs (steering/product, steering/tech, steering/structure) in sync with reality. Use after apply batches and after archiving a change — prevents the project context from rotting between sessions.",
       "tools": [
         "Read",
         "Write",
@@ -209,7 +209,7 @@
       "argumentHint": "[change-name]"
     },
     "estimate": {
-      "description": "Estimate complexity, time and risk per task from tasks.md",
+      "description": "Estimate complexity, time and risk per task from the tasks artifact",
       "argumentHint": "[change-name]"
     },
     "explore": {
@@ -221,7 +221,7 @@
       "argumentHint": "[change-name]"
     },
     "init": {
-      "description": "Initialize SDD in this project — detect stack, bootstrap openspec/ and steering docs",
+      "description": "Initialize SDD in this project — detect stack, bootstrap config and steering docs",
       "argumentHint": "[optional: stack override, e.g. \"use pnpm\"]"
     },
     "new": {
@@ -233,7 +233,7 @@
       "argumentHint": "[change-name | commit-range | file-paths]"
     },
     "steer": {
-      "description": "Refresh project steering docs (product.md, tech.md, structure.md)",
+      "description": "Refresh project steering docs (product, tech, structure)",
       "argumentHint": "[optional: focus note, e.g. \"new payment module landed\"]"
     },
     "verify": {

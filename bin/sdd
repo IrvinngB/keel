@@ -57,6 +57,7 @@ function activeChanges() {
   if (!fs.existsSync(base)) return [];
   return fs.readdirSync(base, { withFileTypes: true })
     .filter((d) => d.isDirectory() && d.name !== 'archive')
+    .filter((d) => stateOf(path.join(base, d.name)).status !== 'archived')
     .map((d) => d.name);
 }
 
@@ -219,6 +220,19 @@ function main() {
       say(`\nproject: ${process.cwd()}`);
       say(`  openspec/            ${fs.existsSync('openspec') ? 'yes' : 'NO — run /sdd:init'}`);
       say(`  active changes       ${activeChanges().length}`);
+      try {
+        const cfg = fs.readFileSync(path.join('openspec', 'config.yaml'), 'utf8');
+        const m = cfg.match(/^artifact_store:\s*["']?([^\s"'#]+)/m);
+        if (m) {
+          const dirs = [path.join(__dirname, '..', 'core', 'persistence'), path.join('.sdd', 'core', 'persistence')];
+          const known = (n) => ['none', 'openspec', 'sqlite', 'mcp-generic'].includes(n)
+            || dirs.some((d) => fs.existsSync(path.join(d, `${n}.md`)));
+          const bad = m[1].split('+').filter((n) => !known(n));
+          say(bad.length
+            ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — map your memory server with the mcp-generic backend, see core/persistence/template.md`
+            : `  artifact_store       ${m[1]}`);
+        }
+      } catch (e) { /* no config yet */ }
       const hook = path.join('.git', 'hooks', 'pre-commit');
       const installed = fs.existsSync(hook) && fs.readFileSync(hook, 'utf8').includes('sdd-kit commit guard');
       say(`  commit guard         ${installed ? 'installed' : 'NOT installed — sdd guard install'}`);
