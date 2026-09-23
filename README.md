@@ -6,12 +6,12 @@ A **stack-agnostic, agent-agnostic** SDD pipeline:
 explore → proposal → spec → clarify → design → blast-radius → tasks → apply → verify → archive
 ```
 
-One canonical core of markdown contracts, generated into native adapters for
-**Claude Code and opencode** — plus a **generic floor** (AGENTS.md + git hook +
-single-phase mode) that covers Codex, Gemini CLI and every other agent,
-including ones that don't exist yet. Native Codex and Gemini adapters are on the
-roadmap (their extension surfaces are verified; the generator just needs the
-dialect blocks).
+One canonical core of markdown contracts, generated from a data-driven **agent
+registry** (`build/manifest.json`) into adapters for Claude Code, opencode, Codex
+CLI, Gemini CLI and Kimi Code CLI — plus a **generic floor** (AGENTS.md + git hook +
+single-phase mode) for every other agent, including ones that don't exist yet.
+`SKILL.md` is the base output format; native subagent and command files are
+emitted only where the registry says the agent supports them.
 Artifacts are plain files under `openspec/` in your project — git-tracked,
 team-shareable, resumable. Persistence is a **pluggable backend** behind one
 abstract interface (SAVE/LOAD/LIST): files and SQLite built in; bring your own
@@ -44,7 +44,7 @@ hooks/              ← PreToolUse (Claude) + pre-commit (universal git guard)
 /plugin install sdd@sdd-kit
 ```
 
-### opencode / generic / per-project
+### Every other agent
 
 ```bash
 git clone https://github.com/IrvinngB/sdd-kit && cd sdd-kit
@@ -53,10 +53,54 @@ ln -s "$PWD/bin/sdd" ~/.local/bin/sdd        # optional
 sdd build                                    # regenerate adapters (already committed)
 sdd install opencode --user                  # global: ~/.config/opencode/{agent,command,skills}
 sdd install opencode --project               # per-repo: .opencode/ (commit it, team gets it)
-sdd install generic --project                # any AGENTS.md-respecting agent (Codex, Cursor,
-                                             # Amp, Jules, future tools): .sdd/core/ + AGENTS.md
+sdd install codex --project                  # .agents/skills + AGENTS.md block + commit guard
+sdd install gemini --project                 # .gemini/{skills,commands} + GEMINI.md block
+sdd install kimi --project                   # .kimi/skills + AGENTS.md block   (experimental)
+sdd install generic --project                # any other AGENTS.md-respecting agent: .sdd/core/
+                                             # + AGENTS.md (--context-file=GEMINI.md for a 2nd file)
 sdd install claude                           # prints the /plugin commands above
 ```
+
+Add `--user` instead of `--project` for a global install (Gemini and Kimi print the
+block to paste instead of writing it: no verified user-level context path).
+
+### Supported agents
+
+| Agent | Skills dir | Commands | Subagents | Context file | Status |
+|-------|-----------|----------|-----------|--------------|--------|
+| Claude Code | plugin | `/sdd:new` | yes | plugin | Verified (1) |
+| opencode | `.opencode/skills` | `/sdd-new` | yes | — | Verified (1) |
+| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Verified |
+| Gemini CLI | `.gemini/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Verified |
+| Kimi Code CLI | `.kimi/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
+| Generic | — | read the phase file | single-phase | `AGENTS.md` | Verified |
+
+**Verified** means the extension surface was checked against the agent's official
+docs on 2026-09-23. It does not mean a full pipeline run inside that agent.
+(1) The `agents/` and `command/` file layouts come from the previous release and
+were not re-checked. (2) Kimi reading `AGENTS.md` is inferred, not confirmed.
+`sdd install` and `sdd doctor` print the per-agent `unverified` fields and notes.
+Gemini CLI reads `GEMINI.md`, not `AGENTS.md`, unless you list it in
+`context.fileName`; `sdd install gemini` writes `GEMINI.md`.
+
+**Shared `.agents/skills`.** Codex, opencode, Gemini and Kimi all read
+`.agents/skills`, and Codex has no other skills directory. The skills `sdd install
+codex` writes there are invocation-neutral: they say "the `sdd-init` skill" and never
+`$sdd-init` or `/skill:sdd-init`, so no reader sees another agent's syntax. Each
+agent's own invocation hint lives only in its context-file block. Agents with a native
+skills dir (opencode, Gemini, Kimi) install there with their own syntax. If an agent
+would find the same skills in two directories, `sdd install` warns and `sdd doctor`
+reports "would discover the sdd skills twice" — keep one copy.
+
+**Per-agent context blocks.** Every agent owns one marked region in the context file
+(`<!-- sdd-kit:begin agent=<id> -->` … `<!-- sdd-kit:end agent=<id> -->`). Codex and
+Kimi can share one `AGENTS.md`; re-running `sdd install` replaces only that agent's
+region and never touches your own content outside the markers.
+
+**Dry run.** `sdd install <agent> --dry-run` prints what it would do and writes
+nothing: no files, no directories, no context-file edits, no git hook.
+`--context-file=<name>` must be a relative path inside the project (no `..`, no
+symlink escape).
 
 ### In every case, per project
 
@@ -80,8 +124,8 @@ Inside any installed agent:
 | `/sdd:blast <symbol>` | what breaks if I change X? (standalone or in-pipeline) |
 | `/sdd:estimate` `/sdd:drift` `/sdd:security` `/sdd:steer` `/sdd:postmortem` | risk, divergence, audit, context, learning |
 
-(Claude dialect shown — opencode uses `/sdd-new` etc.; `sdd next` always prints the
-exact command for your tool.)
+(Claude dialect shown — see the table above for other agents; `sdd next` always
+prints the exact command for your tool.)
 
 From your terminal, no tokens spent:
 
@@ -117,12 +161,23 @@ sdd guard install     # universal git pre-commit guard (any agent, any human)
 - **Commit guard, universal** — Claude PreToolUse + git pre-commit (bypass
   deliberately: `SDD_ALLOW_COMMIT=1 git commit ...`).
 
-## Adding an adapter (future tools)
+## Adding an agent
 
-A dialect is: where agents/commands/skills go, their frontmatter/TOML shape, and
-how `{{agent:X}}` / `{{cmd:X}}` / `{{skill:X}}` resolve. Add one block to
-`build/generate.js`, run `sdd build`, done. Until then, `sdd install generic`
-already covers it.
+Agents are rows in `registry` inside `build/manifest.json`. A row declares:
+
+- `invoke` — how `{{cmd:X}}`, `{{agent:X}}` and `{{skill:X}}` resolve (`{name}`,
+  `{short}` templates) and `args` — how the user's arguments are referenced;
+- `emit` — whether phases/commands become skills or native subagent/command files
+  (`format` picks an existing formatter such as `toml`), the skills dir name, and an
+  optional `contextFile` block;
+- `install` — where files land per scope, plus the context file to append to;
+- `status` (`verified` | `experimental`), `unverifiedFields` and `notes`, which
+  `sdd install` and `sdd doctor` print as warnings.
+
+Add the row, run `sdd build`, done — no generator code changes for any agent that
+fits the skills, Markdown or TOML shapes. A brand-new file format needs one small
+formatter function in `build/generate.js`. Until a row exists, `sdd install generic`
+already covers the agent.
 
 ## License
 
