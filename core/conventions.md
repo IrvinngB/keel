@@ -2,8 +2,9 @@
 # SDD Workflow Contract
 
 The main agent session is the SDD **orchestrator**: it routes phases to
-its phase subagents and never executes phase work inline. Artifacts are plain files
-under `openspec/` in the user's project — git-tracked, no external services.
+its phase subagents and never executes phase work inline. Artifacts are addressed by
+logical keys (see the persistence interface) and stored by the backend selected in
+`config` — by default plain git-tracked files, no external services.
 
 ## Pipeline
 
@@ -23,51 +24,49 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
   batches and after archive), `{{agent:sdd-postmortem}}` (after archive — proposes
   steering updates, never auto-applies).
 
-## Artifact layout
+## Artifact keys
 
-```
-openspec/
-├── config.yaml                    # stack + testing commands + phase rules (sdd-init)
-├── steering/                      # project-level steering docs (sdd-init, sdd-steer)
-│   ├── product.md                 # what the project is, for whom
-│   ├── tech.md                    # stack, versions, settled architecture decisions
-│   └── structure.md               # folder organization, naming conventions
-├── lessons/                         # sdd-postmortem per change (plan vs reality)
-├── specs/                         # SOURCE OF TRUTH — main spec per capability
-│   └── <capability>/spec.md
-└── changes/
-    ├── archive/                   # completed: YYYY-MM-DD-<change>/ (never modify)
-    └── <change-name>/             # active change (kebab-case, verb-first)
-        ├── state.yaml             # DAG state (orchestrator-owned only)
-        ├── exploration.md         # sdd-explore
-        ├── proposal.md            # sdd-propose
-        ├── specs/<capability>/spec.md  # sdd-spec (deltas / new full specs)
-        ├── clarifications.md      # sdd-clarify (questions + resolved answers)
-        ├── design.md              # sdd-design (incl. Rollback & Observability)
-        ├── blast-radius.md        # sdd-blast-radius (consumer map + must-handle)
-        ├── tasks.md               # sdd-tasks; [x] marks updated by sdd-apply
-        ├── estimate.md            # sdd-estimate
-        ├── apply-progress.md      # sdd-apply cumulative progress
-        ├── drift-report.md        # sdd-drift
-        ├── security-report.md     # sdd-security
-        ├── verify-report.md       # sdd-verify
-        └── archive-report.md      # sdd-archive (before folder moves)
-```
+Every artifact is addressed by a logical key; the persistence backend decides where
+it lives (the default files backend maps keys to an `openspec/` tree — see its doc).
+
+| Key | Written by |
+|-----|-----------|
+| `config` | init / stack-detector — stack, testing commands, phase rules, `artifact_store` |
+| `steering/<product\|tech\|structure>` | init, sdd-steer — project-level steering docs |
+| `specs/<capability>` | sdd-archive — SOURCE OF TRUTH, one main spec per capability |
+| `lessons/<change>` | sdd-postmortem — plan vs reality |
+| `<change>/state` | orchestrator ONLY — DAG state |
+| `<change>/explore` | sdd-explore |
+| `<change>/proposal` | sdd-propose |
+| `<change>/spec/<capability>` | sdd-spec — deltas / new full specs |
+| `<change>/clarify` | sdd-clarify — questions + resolved answers |
+| `<change>/design` | sdd-design (incl. Rollback & Observability) |
+| `<change>/blast-radius` | sdd-blast-radius — consumer map + must-handle |
+| `<change>/tasks` | sdd-tasks; `[x]` marks updated by sdd-apply |
+| `<change>/estimate` | sdd-estimate |
+| `<change>/apply-progress` | sdd-apply — cumulative progress |
+| `<change>/drift` | sdd-drift |
+| `<change>/security` | sdd-security |
+| `<change>/verify-report` | sdd-verify |
+| `<change>/archive-report` | sdd-archive |
+
+Change names are kebab-case, verb-first. Reserved names: `config`, `steering`,
+`specs`, `lessons`, `init`, `caps`.
 
 ## Shared rules for every phase agent
 
-- **Read before write**: if the output file exists, read it and UPDATE — never blind
+- **Read before write**: if the output key exists, LOAD it and UPDATE — never blind
   overwrite. Re-running a phase is a continuation.
-- **Project context first**: read `openspec/config.yaml`, `openspec/steering/` and
-  the project's own `CLAUDE.md`/`AGENTS.md` when present; follow the project's real
+- **Project context first**: LOAD `config` and the `steering/*` keys, plus the
+  project's own `CLAUDE.md`/`AGENTS.md` when present; follow the project's real
   patterns, not generic best practices.
 - **Return envelope** (to the orchestrator): `status` (success|partial|blocked),
-  `executive_summary` (1-3 sentences), `artifacts` (paths written),
+  `executive_summary` (1-3 sentences), `artifacts` (keys written),
   `next_recommended`, `risks` (or "None").
 - **Size budgets**: proposal < 450 words, spec < 650, design < 800, blast-radius
   < 400, tasks < 530. Bullets and tables over prose.
-- **state.yaml**: `current_phase`, `completed: [...]`, `open_questions`, `updated`.
-  Only the orchestrator writes it.
+- **`<change>/state`**: `current_phase`, `completed: [...]`, `open_questions`,
+  `updated`, `status: active|archived`, `archived_on`. Only the orchestrator writes it.
 
 ## Spec format rules
 
@@ -81,7 +80,7 @@ openspec/
 ## Review workload guard
 
 - Default PR review budget: **400 changed lines** (additions + deletions).
-- `{{agent:sdd-tasks}}` MUST include these exact plain-text lines in `tasks.md` (downstream
+- `{{agent:sdd-tasks}}` MUST include these exact plain-text lines in `<change>/tasks` (downstream
   guards match them literally):
 
 ```text
@@ -103,17 +102,22 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 
 ## Archive rules
 
-- NEVER archive with open CRITICAL findings in `verify-report.md`.
-- Sync deltas into `openspec/specs/` BEFORE moving: ADDED → append, MODIFIED →
-  replace block, REMOVED → delete, new capability → copy as full spec.
-- Move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. The archive is an audit
-  trail — never delete or modify archived changes.
+- NEVER archive with open CRITICAL findings in `<change>/verify-report`.
+- Sync deltas into `specs/<capability>` BEFORE marking the change archived: ADDED →
+  append, MODIFIED → replace block, REMOVED → delete, new capability → copy as full
+  spec.
+- Archiving = SAVE `<change>/archive-report`, then the orchestrator SAVEs
+  `<change>/state` with `status: archived`; a backend with directories may relocate
+  the change (files backend doc). The archive is an audit trail — never delete or
+  modify archived changes.
 - After archive, run `{{agent:sdd-steer}}` to refresh steering docs.
 
 ## Commit guard (hook)
 
-A PreToolUse hook blocks `git commit` while any active change's `tasks.md` has
-unchecked `- [ ]` boxes. Bypass with env `SDD_ALLOW_COMMIT=1` (use deliberately:
+A PreToolUse hook blocks `git commit` while any active change's `<change>/tasks`
+has unchecked `- [ ]` boxes. It reads the files backend only; on other backends
+it is a no-op, so enforce the same rule by LOADing `<change>/tasks` before
+committing. Bypass with env `SDD_ALLOW_COMMIT=1` (use deliberately:
 WIP commits, docs-only commits, chained-PR boundaries).
 
 ## Execution modes

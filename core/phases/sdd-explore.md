@@ -4,17 +4,16 @@ do NOT launch subagents, do NOT call the Task/Agent tool.
 
 ## Contract
 
-Artifacts live in `openspec/` in the project root. If a change folder
-`openspec/changes/<change-name>/` is named, your output file is `exploration.md`
-there (read and update if it exists). Return envelope: `status`,
+If a change is named, SAVE your output to `<change-name>/explore` (LOAD and update
+if it exists). Return envelope: `status`,
 `executive_summary`, `artifacts`, `next_recommended`, `risks`.
 
 ## Steps
 
 1. Understand the request: new feature, bug fix, refactor? Which domain does it
    touch?
-2. Load project context if present: `openspec/config.yaml`,
-   `openspec/steering/`, `CLAUDE.md`/`AGENTS.md`.
+2. Load project context if present: `config`,
+   `steering/*`, `CLAUDE.md`/`AGENTS.md`.
 3. Investigate REAL code — never guess:
    - Entry points and routes
    - The business-logic layer the project actually uses (services, use-cases,
@@ -28,7 +27,7 @@ there (read and update if it exists). Return envelope: `status`,
 
 ## Output
 
-Return the analysis in this structure (same content goes into `exploration.md` when
+Return the analysis in this structure (same content goes into `<change-name>/explore` when
 tied to a change):
 
 ```markdown
@@ -56,7 +55,7 @@ tied to a change):
 
 ## Rules
 
-- NEVER modify code; the only file you may create is `exploration.md`.
+- NEVER modify code; the only file you may create is `<change-name>/explore`.
 - If you cannot find enough information, say so — do not invent behavior.
 - If the request is too vague, state exactly what clarification is needed.
 - Keep it concise: analysis, not a novel.
