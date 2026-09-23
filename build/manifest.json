@@ -2,7 +2,7 @@
   "plugin": {
     "name": "sdd",
     "description": "Spec-Driven Development pipeline: explore→proposal→spec→clarify→design→blast-radius→tasks→apply→verify→archive with clarify gate, blast-radius mapping, drift detection, steering docs, postmortem learning, stack detection, security review, estimates, commit guard. Stack-agnostic.",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "author": {
       "name": "Irvinng"
     },
@@ -154,7 +154,7 @@
     },
     "codex": {
       "displayName": "Codex CLI",
-      "status": "verified",
+      "status": "experimental",
       "unverifiedFields": [
         "subagents"
       ],
@@ -220,7 +220,7 @@
     },
     "gemini": {
       "displayName": "Gemini CLI",
-      "status": "verified",
+      "status": "experimental",
       "unverifiedFields": [
         "subagents",
         "userContextFile"

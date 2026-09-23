@@ -71,16 +71,26 @@ block to paste instead of writing it: no verified user-level context path).
 | Agent | Skills dir | Commands | Subagents | Context file | Status |
 |-------|-----------|----------|-----------|--------------|--------|
 | Claude Code | plugin | `/sdd:new` | yes | plugin | Verified (1) |
-| opencode | `.agents/skills` | `/sdd-new` | yes | — | Verified (1) |
-| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Verified |
-| Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Verified |
+| opencode | `.agents/skills` | `/sdd-new` | yes | — | Tested (1) |
+| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Experimental (3) |
+| Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
 | Generic | — | read the phase file | single-phase | `AGENTS.md` | Verified |
 
-**Verified** means the extension surface was checked against the agent's official
-docs on 2026-09-23. It does not mean a full pipeline run inside that agent.
+**Tested** means a real headless session of that agent loaded the installed skills
+(opencode 1.18.18, 2026-09-23). **Verified** means the extension surface was checked
+against the agent's official docs on that date. **Experimental** means docs only or
+partly inferred: neither guarantees a full pipeline run inside that agent.
 (1) The `agents/` and `command/` file layouts come from the previous release and
-were not re-checked. (2) Kimi reading `AGENTS.md` is inferred, not confirmed.
+were not re-checked; the generated `/sdd-*` opencode commands were not exercised.
+(2) Kimi reading `AGENTS.md` is inferred, not confirmed. (3) Codex was not available
+to test. (4) Gemini CLI is being retired for individual accounts in favor of
+Antigravity; the headless run was rejected by Google, so it could not be tested.
+
+**Antigravity (`agy`) is not supported yet.** It is a different product from Gemini
+CLI with its own conventions (its global skills live in `~/.gemini/config/skills`),
+and a headless test did not find skills placed in `.agents/skills`. It gets a registry
+entry once its project-level skills and commands paths are confirmed interactively.
 `sdd install` and `sdd doctor` print the per-agent `unverified` fields and notes.
 Gemini CLI reads `GEMINI.md`, not `AGENTS.md`, unless you list it in
 `context.fileName`; `sdd install gemini` writes `GEMINI.md`.
