@@ -30,7 +30,7 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ## Artifact keys
 
 Every artifact is addressed by a logical key; the persistence backend decides where
-it lives (the default files backend maps keys to an `openspec/` tree — see its doc).
+it lives (the default files backend maps keys to a `keel/` tree — see its doc).
 
 | Key | Written by |
 |-----|-----------|
@@ -210,6 +210,67 @@ model tokens.
 
 ---
 
+# Persistence backend: files
+
+Canonical backend, always available. Everything lives in the user project,
+git-tracked, team-shareable, versioned by git itself. This is the ONLY document that
+maps logical keys to `keel/` paths.
+
+## Operations
+
+```
+SAVE(key, content): write to the mapped path (mkdir -p parents); read-before-write applies
+LOAD(key):          read the mapped file — full content by definition
+LIST(prefix):       list the mapped directory for the prefix (find for spec keys);
+                    updated time = `git log -1 --format=%ci -- <path>`, else file mtime
+```
+
+## Mapping
+
+| Logical key | Path |
+|-------------|------|
+| `config` | `keel/config.yaml` (bootstrap: always this location) |
+| `steering/<name>` | `keel/steering/<name>.md` |
+| `specs/<capability>` | `keel/specs/<capability>/spec.md` |
+| `lessons/<change>` | `keel/lessons/<change>.md` |
+| `init/<project>`, `caps/<project>` | not stored separately — covered by `config` (stack, testing) |
+| `<change>/state` | `keel/changes/<change>/state.yaml` |
+| `<change>/explore` | `keel/changes/<change>/exploration.md` |
+| `<change>/proposal` | `keel/changes/<change>/proposal.md` |
+| `<change>/spec/<capability>` | `keel/changes/<change>/specs/<capability>/spec.md` |
+| `<change>/clarify` | `keel/changes/<change>/clarifications.md` |
+| `<change>/design` | `keel/changes/<change>/design.md` |
+| `<change>/blast-radius` | `keel/changes/<change>/blast-radius.md` |
+| `<change>/tasks` | `keel/changes/<change>/tasks.md` |
+| `<change>/estimate` | `keel/changes/<change>/estimate.md` |
+| `<change>/apply-progress` | `keel/changes/<change>/apply-progress.md` |
+| `<change>/drift` | `keel/changes/<change>/drift-report.md` |
+| `<change>/security` | `keel/changes/<change>/security-report.md` (standalone, no change: report inline) |
+| `<change>/verify-report` | `keel/changes/<change>/verify-report.md` |
+| `<change>/archive-report` | `keel/changes/<change>/archive-report.md` |
+
+## Archive finalization (files backend only)
+
+After the orchestrator SAVEs `<change>/state` with `status: archived`, move the
+folder: `keel/changes/<change>/` → `keel/changes/archive/<archived_on>-<change>/`
+(create `archive/` if missing; `mv`).
+
+Resolution rule: when `keel/changes/<change>/` is absent, LOAD and LIST resolve
+`<change>/...` inside the archived folder whose name is EXACTLY
+`<YYYY-MM-DD>-<change>` (fixed 10-character date prefix, then `-`, then the full
+change name — never a loose `*-<change>` glob, which would also match
+`2026-09-23-bar-<change>`), read-only. If several dates match, the most recent
+wins. Active-change listing is `keel/changes/*/` excluding `archive/`.
+
+Name reuse: a change name that exists as an active folder or as an archived folder
+is taken. `new` must reject it and ask for a different name. `archive` is reserved
+(it is the archive directory).
+
+Rules: read-before-write (update, never blind overwrite); archived changes are
+immutable — SAVE into an archived folder is refused.
+
+---
+
 # Persistence — Backend Interface
 
 Every artifact in the pipeline has ONE logical identity, independent of storage.
@@ -262,7 +323,7 @@ Plus shared rules every backend inherits:
 
 `config` is the one key that names the backend, so it cannot be located through the
 backend. The orchestrator always resolves it at the files-backend location (see
-`openspec.md`); after that every phase LOADs `config` like any other key. A `+`
+`files.md`); after that every phase LOADs `config` like any other key. A `+`
 combination may mirror `config` to the other backends, but the file copy stays
 authoritative.
 
@@ -271,8 +332,8 @@ authoritative.
 `artifact_store` inside `config`:
 
 ```yaml
-artifact_store: openspec          # single backend
-artifact_store: openspec+sqlite   # combination: write ALL, read in listed order
+artifact_store: files             # single backend
+artifact_store: files+sqlite      # combination: write ALL, read in listed order
 artifact_store: none              # conversation-only, warn about loss
 ```
 
@@ -287,7 +348,7 @@ SAVEs `<change>/archive-report`; the orchestrator then SAVEs `<change>/state` wi
 `status: archived` and `archived_on`.
 
 A backend with native directories MAY relocate the change as a finalization step
-(the files backend does — see `openspec.md`) as long as every key keeps resolving.
+(the files backend does — see `files.md`) as long as every key keeps resolving.
 A backend without directories (SQLite, memory servers, MCP stores) needs nothing more: the
 `status: archived` flag IS the archive, and its keys are simply never written again.
 
@@ -295,7 +356,7 @@ A backend without directories (SQLite, memory servers, MCP stores) needs nothing
 
 | Key | Doc | Shareable | Cross-session | Needs |
 |-----|-----|-----------|---------------|-------|
-| `openspec` | openspec.md | ✅ (git) | via repo | — (always available) |
+| `files` | files.md | ✅ (git) | via repo | — (always available) |
 | `sqlite` | sqlite.md | ❌ local file | ✅ | `sqlite3` CLI |
 | `mcp-generic` | mcp-generic.md | ❌ | depends on server | any MCP store with 3 mappable tools |
 
@@ -389,67 +450,6 @@ LIST:     find(prefix: "sdd/<prefix>", page: 1..n) until empty
 
 ---
 
-# Persistence backend: openspec (files)
-
-Canonical backend, always available. Everything lives in the user project,
-git-tracked, team-shareable, versioned by git itself. This is the ONLY document that
-maps logical keys to `openspec/` paths.
-
-## Operations
-
-```
-SAVE(key, content): write to the mapped path (mkdir -p parents); read-before-write applies
-LOAD(key):          read the mapped file — full content by definition
-LIST(prefix):       list the mapped directory for the prefix (find for spec keys);
-                    updated time = `git log -1 --format=%ci -- <path>`, else file mtime
-```
-
-## Mapping
-
-| Logical key | Path |
-|-------------|------|
-| `config` | `openspec/config.yaml` (bootstrap: always this location) |
-| `steering/<name>` | `openspec/steering/<name>.md` |
-| `specs/<capability>` | `openspec/specs/<capability>/spec.md` |
-| `lessons/<change>` | `openspec/lessons/<change>.md` |
-| `init/<project>`, `caps/<project>` | not stored separately — covered by `config` (stack, testing) |
-| `<change>/state` | `openspec/changes/<change>/state.yaml` |
-| `<change>/explore` | `openspec/changes/<change>/exploration.md` |
-| `<change>/proposal` | `openspec/changes/<change>/proposal.md` |
-| `<change>/spec/<capability>` | `openspec/changes/<change>/specs/<capability>/spec.md` |
-| `<change>/clarify` | `openspec/changes/<change>/clarifications.md` |
-| `<change>/design` | `openspec/changes/<change>/design.md` |
-| `<change>/blast-radius` | `openspec/changes/<change>/blast-radius.md` |
-| `<change>/tasks` | `openspec/changes/<change>/tasks.md` |
-| `<change>/estimate` | `openspec/changes/<change>/estimate.md` |
-| `<change>/apply-progress` | `openspec/changes/<change>/apply-progress.md` |
-| `<change>/drift` | `openspec/changes/<change>/drift-report.md` |
-| `<change>/security` | `openspec/changes/<change>/security-report.md` (standalone, no change: report inline) |
-| `<change>/verify-report` | `openspec/changes/<change>/verify-report.md` |
-| `<change>/archive-report` | `openspec/changes/<change>/archive-report.md` |
-
-## Archive finalization (files backend only)
-
-After the orchestrator SAVEs `<change>/state` with `status: archived`, move the
-folder: `openspec/changes/<change>/` → `openspec/changes/archive/<archived_on>-<change>/`
-(create `archive/` if missing; `mv`).
-
-Resolution rule: when `openspec/changes/<change>/` is absent, LOAD and LIST resolve
-`<change>/...` inside the archived folder whose name is EXACTLY
-`<YYYY-MM-DD>-<change>` (fixed 10-character date prefix, then `-`, then the full
-change name — never a loose `*-<change>` glob, which would also match
-`2026-09-23-bar-<change>`), read-only. If several dates match, the most recent
-wins. Active-change listing is `openspec/changes/*/` excluding `archive/`.
-
-Name reuse: a change name that exists as an active folder or as an archived folder
-is taken. `new` must reject it and ask for a different name. `archive` is reserved
-(it is the archive directory).
-
-Rules: read-before-write (update, never blind overwrite); archived changes are
-immutable — SAVE into an archived folder is refused.
-
----
-
 # Persistence backend: SQLite (local file)
 
 Single local database, zero network, no MCP required. Good middle ground:
@@ -465,7 +465,7 @@ LIST(prefix):       SELECT key, updated_at FROM sdd_artifacts
                     WHERE key LIKE '<prefix>%';
 ```
 
-Invoke via `sqlite3 openspec/.sdd-store.db "<sql>"`. Content with quotes: pass
+Invoke via `sqlite3 keel/.sdd-store.db "<sql>"`. Content with quotes: pass
 through a temp file (`sqlite3 db ".read tmp.sql"`) or use parameter support if
 available. Key slashes are kept verbatim (keys are plain TEXT): every logical key
 in interface.md — `config`, `steering/<name>`, `specs/<capability>`,

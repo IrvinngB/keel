@@ -27,7 +27,7 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ## Artifact keys
 
 Every artifact is addressed by a logical key; the persistence backend decides where
-it lives (the default files backend maps keys to an `openspec/` tree — see its doc).
+it lives (the default files backend maps keys to a `keel/` tree — see its doc).
 
 | Key | Written by |
 |-----|-----------|

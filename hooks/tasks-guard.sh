@@ -1,6 +1,6 @@
 #!/bin/sh
 # SDD commit guard (PreToolUse hook).
-# Blocks `git commit` while any ACTIVE change in openspec/changes/ has unchecked
+# Blocks `git commit` while any ACTIVE change in keel/changes/ has unchecked
 # tasks in its tasks.md. Archived changes are ignored.
 #
 # Deliberate bypass — the token must appear IN THE COMMAND ITSELF, because the
@@ -16,7 +16,7 @@ input=$(cat)
 [ "${SDD_ALLOW_COMMIT}" = "1" ] && exit 0
 
 # Only applies to projects initialized with SDD.
-[ -d "openspec/changes" ] || exit 0
+[ -d "keel/changes" ] || exit 0
 
 # Extract the command field with jq when available (precise). Without jq fall
 # back to a coarse substring scan of the raw JSON — it can false-positive on
@@ -50,12 +50,12 @@ else
 fi
 
 offenders=""
-for tasks in openspec/changes/*/tasks.md; do
+for tasks in keel/changes/*/tasks.md; do
   [ -f "$tasks" ] || continue
   # Defense in depth: the single-level glob never descends into archive/,
   # but skip explicitly if the layout ever changes.
   case "$tasks" in
-    openspec/changes/archive/*) continue ;;
+    keel/changes/archive/*) continue ;;
   esac
   pending=$(grep -c '^[[:space:]]*- \[ \]' "$tasks" 2>/dev/null)
   [ -n "$pending" ] || pending=0

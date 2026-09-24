@@ -13,7 +13,7 @@ LIST(prefix):       SELECT key, updated_at FROM sdd_artifacts
                     WHERE key LIKE '<prefix>%';
 ```
 
-Invoke via `sqlite3 openspec/.sdd-store.db "<sql>"`. Content with quotes: pass
+Invoke via `sqlite3 keel/.sdd-store.db "<sql>"`. Content with quotes: pass
 through a temp file (`sqlite3 db ".read tmp.sql"`) or use parameter support if
 available. Key slashes are kept verbatim (keys are plain TEXT): every logical key
 in interface.md — `config`, `steering/<name>`, `specs/<capability>`,
