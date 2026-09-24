@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.4.1 - 2026-09-24
+
+First release published to npm as `keel-sdd`: `npx keel-sdd install <agent> --project`
+or `npm install -g keel-sdd`. No behavior change in the CLI or the phase contracts.
 
 ### Added
 
+- Install with `npx keel-sdd` or `npm install -g keel-sdd`.
 - npm-ready package metadata (homepage, bugs, keywords, public access) and a
   `prepublishOnly` guard that runs the tests and rejects stale `adapters/`.
 - `npm version` now keeps `build/manifest.json` and the marketplace version in step with
