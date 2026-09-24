@@ -1,0 +1,39 @@
+name: Agent support report
+description: You ran Keel inside an agent. Tell us what worked, so its status can be updated.
+labels: [agent-support]
+body:
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      placeholder: "Codex CLI 0.42.0"
+    validations:
+      required: true
+  - type: input
+    id: date
+    attributes:
+      label: Date tested
+      placeholder: "2026-09-24"
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: Install command used
+      placeholder: "sdd install codex --project"
+    validations:
+      required: true
+  - type: checkboxes
+    id: results
+    attributes:
+      label: What worked
+      options:
+        - label: The agent discovered the installed skills
+        - label: The agent read the context file block
+        - label: Native commands or subagents ran (if the agent has them)
+        - label: A full pipeline ran (init → new → ... → archive)
+  - type: textarea
+    id: notes
+    attributes:
+      label: Details
+      description: What failed, paths the agent actually read, docs links that confirm or contradict the registry row in build/manifest.json.

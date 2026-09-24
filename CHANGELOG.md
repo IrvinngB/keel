@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Community files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue
+  templates (bug, feature, agent support report) and a pull request template.
+- CI: syntax check, `sdd build` self-check, adapters-in-sync check, and the test suite
+  on Linux, macOS and Windows with Node 18 and 22.
+- Test suite (`npm test`, `node:test`, zero dependencies) covering the commit guard,
+  context-block upserts, `--context-file` path checks and dry runs.
+- `package.json` with a `sdd` bin: `npm install -g github:IrvinngB/keel` works on
+  every platform, including Windows.
+
+### Fixed
+
+- The commit guard is installed where git actually runs hooks
+  (`git rev-parse --git-path hooks`): it honors `core.hooksPath` (husky, lefthook),
+  linked worktrees, submodules and subdirectories. Before, it was written to
+  `.git/hooks` and silently never ran, or failed with "not a git repository".
+- An existing pre-commit hook is no longer inlined into the guard: it is kept intact as
+  `pre-commit.keel-chained` and executed last, so Python, Node or bash hooks keep
+  working. v2 guards with an inlined chain are migrated on reinstall.
+- `.gitattributes` forces LF for `bin/sdd` and `hooks/`, and the guard template is
+  normalized before writing, so a CRLF checkout on Windows no longer breaks `sh`.
+- User-scope paths use `os.homedir()` instead of `$HOME`, which is unset on Windows.
+- `sdd guard install|remove --dry-run` no longer writes, renames or deletes hooks.
+
+### Changed
+
+- Commit guard v3. `SDD_ALLOW_COMMIT=1` now bypasses only Keel's checks; a chained
+  hook of your own still runs.
+
 ## 0.3.0 - 2026-09-23
 
 The project is now called **Keel**. The `sdd` CLI, the `/sdd:*` commands and the skill

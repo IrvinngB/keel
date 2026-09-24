@@ -1,0 +1,39 @@
+name: Bug report
+description: Something in the CLI, the generator or a phase contract does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. sdd install opencode --project
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options: [Claude Code, opencode, Codex CLI, Gemini CLI, Kimi Code CLI, Generic, CLI only (no agent)]
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: "Keel 0.3.0, Node 22, opencode 1.18"
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `sdd doctor`
+      render: text

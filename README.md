@@ -199,6 +199,15 @@ fits the skills, Markdown or TOML shapes. A brand-new file format needs one smal
 formatter function in `build/generate.js`. Until a row exists, `sdd install generic`
 already covers the agent.
 
+## Contributing
+
+Bug reports, agent support reports and PRs are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md): where each change goes, the portability rules, and
+the checks CI runs. Tested Keel inside an Experimental agent? An
+[agent support report](https://github.com/IrvinngB/keel/issues/new?template=agent_support.yml)
+is the fastest way to move it to Tested. Participation follows the
+[Code of Conduct](CODE_OF_CONDUCT.md); report vulnerabilities per [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT
