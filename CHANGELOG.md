@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Spanish documentation in `docs/es/`: README, installation details and contributing
+  guide. A test fails when a translation drops a section or code block of its English
+  source, or when a relative link breaks.
+
 ## 0.4.1 - 2026-09-24
 
 First release published to npm as `keel-sdd`: `npx keel-sdd install <agent> --project`

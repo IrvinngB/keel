@@ -3,6 +3,8 @@
 [![CI](https://github.com/IrvinngB/keel/actions/workflows/ci.yml/badge.svg)](https://github.com/IrvinngB/keel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+Español: [documentación en español](docs/es/README.md)
+
 > Spec-driven development for any AI coding agent. Plan the change, prove it, and
 > keep the specs in git, whether you use Claude Code, opencode, Codex CLI, Gemini CLI,
 > or anything that reads `AGENTS.md`.
