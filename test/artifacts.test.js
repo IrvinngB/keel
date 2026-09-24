@@ -27,7 +27,10 @@ test('a pre-0.4.0 Keel openspec/ gets a migration hint', () => {
   const { dir, env } = repo();
   write(path.join(dir, 'openspec', 'config.yaml'), 'artifact_store: openspec\n');
   assert.match(sdd(dir, env, 'status').out, /git mv openspec keel/);
-  assert.match(sdd(dir, env, 'doctor').out, /git mv openspec keel/);
+  const doctor = sdd(dir, env, 'doctor').out;
+  assert.match(doctor, /git mv openspec keel/);
+  assert.match(doctor, /do not run init/);
+  assert.doesNotMatch(doctor, /run \/sdd:init/);
 });
 
 test('doctor explains the renamed files backend', () => {
