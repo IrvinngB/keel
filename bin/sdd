@@ -16,6 +16,9 @@ const flagVals = Object.fromEntries(
 const pos = args.slice(1).filter((a) => !a.startsWith('--'));
 const DRY = flags.has('--dry-run');
 // os.homedir() also covers Windows (no $HOME), but throws when no home can be resolved.
+// Artifacts live under keel/. openspec/ belongs to OpenSpec, a different tool; Keel never reads it.
+const ARTIFACTS = 'keel';
+const CHANGES = path.join(ARTIFACTS, 'changes');
 const HOME = (() => { try { return require('os').homedir(); } catch (e) { return process.env.HOME || ''; } })();
 
 function die(msg) { console.error(`sdd: ${msg}`); process.exit(1); }
@@ -163,8 +166,15 @@ function stateOf(dir) {
   return out;
 }
 
+// Keel before 0.4.0 wrote to openspec/. Its config names an artifact_store; OpenSpec's does not.
+function legacyArtifactDir() {
+  try { return /^artifact_store:/m.test(fs.readFileSync(path.join('openspec', 'config.yaml'), 'utf8')); } catch (e) { return false; }
+}
+const LEGACY_HINT = 'openspec/ holds Keel artifacts from before 0.4.0 — move them: git mv openspec keel, ' +
+  'then set artifact_store: files (formerly openspec) in keel/config.yaml.';
+
 function activeChanges() {
-  const base = 'openspec/changes';
+  const base = CHANGES;
   if (!fs.existsSync(base)) return [];
   return fs.readdirSync(base, { withFileTypes: true })
     .filter((d) => d.isDirectory() && d.name !== 'archive')
@@ -358,12 +368,13 @@ function main() {
     }
 
     case 'status': {
+      if (legacyArtifactDir()) say(`notice: ${LEGACY_HINT}\n`);
       const only = pos[0];
       let changes = activeChanges();
       if (only) changes = changes.filter((c) => c === only);
-      if (!changes.length) { say('No active changes (openspec/changes/).'); return; }
+      if (!changes.length) { say(`No active changes (${ARTIFACTS}/changes/).`); return; }
       const rows = changes.map((c) => {
-        const dir = path.join('openspec', 'changes', c);
+        const dir = path.join(CHANGES, c);
         const t = taskCounts(dir);
         return {
           change: c,
@@ -386,7 +397,7 @@ function main() {
       if (!changes.length) { const d = dialect(); die(`no active changes — start one: ${d.name === 'generic' ? 'follow .sdd/core/commands/new.md' : fill(REGISTRY[d.name === 'none' ? 'claude' : d.name].invoke.cmd, 'new')} <change-name>`); }
       const pick = pos[0] ? changes.filter((c) => c === pos[0]) : changes;
       for (const c of pick) {
-        const dir = path.join('openspec', 'changes', c);
+        const dir = path.join(CHANGES, c);
         const done = progress(dir);
         // explore is optional once anything after it exists
         const missing = PHASES.filter(([p]) => !done.includes(p))
@@ -439,26 +450,33 @@ function main() {
       warnings.push(...legacyFindings());
       for (const w of warnings) say(`\n${w}`);
       say(`\nproject: ${process.cwd()}`);
-      say(`  openspec/            ${fs.existsSync('openspec') ? 'yes' : 'NO — run /sdd:init'}`);
+      say(`  keel/                ${fs.existsSync(ARTIFACTS) ? 'yes' : 'NO — run /sdd:init'}`);
+      if (legacyArtifactDir()) say(`  notice               ${LEGACY_HINT}`);
+      else if (fs.existsSync('openspec')) say('  openspec/            not Keel\'s (OpenSpec uses it) — ignored');
       say(`  active changes       ${activeChanges().length}`);
       try {
-        const cfg = fs.readFileSync(path.join('openspec', 'config.yaml'), 'utf8');
+        const cfg = fs.readFileSync(path.join(ARTIFACTS, 'config.yaml'), 'utf8');
         const m = cfg.match(/^artifact_store:\s*["']?([^\s"'#]+)/m);
         if (m) {
           const dirs = [path.join(__dirname, '..', 'core', 'persistence'), path.join('.sdd', 'core', 'persistence')];
-          const known = (n) => ['none', 'openspec', 'sqlite', 'mcp-generic'].includes(n)
+          const known = (n) => ['none', 'files', 'sqlite', 'mcp-generic'].includes(n)
             || dirs.some((d) => fs.existsSync(path.join(d, `${n}.md`)));
           const bad = m[1].split('+').filter((n) => !known(n));
           say(bad.length
-            ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — map your memory server with the mcp-generic backend, see core/persistence/template.md`
+            ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — ${bad.includes('openspec') ? 'the openspec backend is now called files' : 'map your memory server with the mcp-generic backend, see core/persistence/template.md'}`
             : `  artifact_store       ${m[1]}`);
           if (!bad.length) for (const n of m[1].split('+')) say(`  round-trip ${n.padEnd(11)}${probeBackend(n)}`);
         }
       } catch (e) { /* no config yet */ }
       const hdir = hooksDir();
       const hook = hdir && path.join(hdir, 'pre-commit');
-      const installed = Boolean(hook && fs.existsSync(hook) && ownsHook(fs.readFileSync(hook, 'utf8')));
-      say(`  commit guard         ${!hdir ? 'n/a — not a git repository' : installed ? `installed (${path.relative(process.cwd(), hook)})` : 'NOT installed — sdd guard install'}`);
+      const text = hook && fs.existsSync(hook) ? fs.readFileSync(hook, 'utf8') : '';
+      const ver = ownsHook(text) ? guardVersion(text) : 0;
+      const where = hook ? path.relative(process.cwd(), hook) : '';
+      say(`  commit guard         ${!hdir ? 'n/a — not a git repository'
+        : !ver ? 'NOT installed — sdd guard install'
+        : ver < currentGuardVersion() ? `OUTDATED (v${ver}, ${where}) — it may not check keel/; run sdd guard install`
+        : `installed (${where})`}`);
       say(`  dialect in use       ${dialect().name}`);
       return;
     }
@@ -478,7 +496,7 @@ function main() {
       + commit guard (--context-file=GEMINI.md adds a second context file)
   sdd status [change]                pipeline state of active changes (no tokens)
   sdd next [change]                  next phase + exact command for this repo
-  sdd doctor                         agents (verified/experimental), openspec/, backend
+  sdd doctor                         agents (verified/experimental), keel/, backend
                                      round-trip, guards
   sdd guard install|remove           universal git pre-commit guard`);
       return;
@@ -491,9 +509,9 @@ function main() {
 function probeBackend(name) {
   const token = `sdd-probe-${process.pid}-${Date.now()}`;
   if (name === 'none') return 'nothing persisted (inline only)';
-  if (name === 'openspec') {
-    if (!fs.existsSync('openspec')) return 'skipped — openspec/ not found';
-    const f = path.join('openspec', '.sdd-doctor-probe');
+  if (name === 'files') {
+    if (!fs.existsSync(ARTIFACTS)) return `skipped — ${ARTIFACTS}/ not found`;
+    const f = path.join(ARTIFACTS, '.sdd-doctor-probe');
     try {
       fs.writeFileSync(f, token);
       return fs.readFileSync(f, 'utf8') === token ? 'SAVE→LOAD ok' : 'FAILED — read back a different value';
@@ -513,6 +531,9 @@ function probeBackend(name) {
 
 const GUARD_MARKER = /^# keel commit guard v\d+$/m;
 const ownsHook = (text) => GUARD_MARKER.test(text);
+const guardVersion = (text) => Number((text.match(/^# keel commit guard v(\d+)$/m) || [])[1] || 0);
+// An older guard may still check openspec/ and let every keel/ commit through.
+const currentGuardVersion = () => guardVersion(fs.readFileSync(path.join(ROOT, 'hooks', 'pre-commit'), 'utf8'));
 const CHAINED = 'pre-commit.keel-chained';
 // v2 inlined the user's original hook into the guard; v3 keeps it as its own file.
 const LEGACY_CHAIN = /# --- chained original pre-commit ---\r?\n([\s\S]*?)\r?\n# --- end chain ---/;

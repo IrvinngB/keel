@@ -10,7 +10,7 @@ layout and contract).
    location. The files backend also creates its empty `specs/` and
    `changes/archive/` layout (see its doc); other backends need no skeleton.
 4. Ask the user setup questions (one at a time): artifact store (default:
-   `openspec`; offer any backend doc from the bundled persistence folder — files,
+   `files`; offer any backend doc from the bundled persistence folder — files,
    SQLite, a mapped MCP memory server, or `+` combinations; point to
    `template.md` for a custom backend), Strict TDD on/off
    (default: ON if a test runner was verified), security_review on/off (default:

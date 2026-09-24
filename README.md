@@ -14,8 +14,10 @@ CLI, Gemini CLI and Kimi Code CLI — plus a **generic floor** (AGENTS.md + git 
 single-phase mode) for every other agent, including ones that don't exist yet.
 `SKILL.md` is the base output format; native subagent and command files are
 emitted only where the registry says the agent supports them.
-Artifacts are plain files under `openspec/` in your project — git-tracked,
-team-shareable, resumable. Persistence is a **pluggable backend** behind one
+Artifacts are plain files under `keel/` in your project — git-tracked,
+team-shareable, resumable. Keel never touches `openspec/`, which belongs to
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) (upgrading from 0.3:
+`git mv openspec keel`). Persistence is a **pluggable backend** behind one
 abstract interface (SAVE/LOAD/LIST): files and SQLite built in; bring your own
 store via the generic MCP mapping (`mcp-generic.md`) or `template.md`, alone or
 combined with `+`.
@@ -125,7 +127,7 @@ symlink escape).
 ### In every case, per project
 
 Run `/sdd:init` inside your agent — it detects the stack, writes
-`openspec/config.yaml`, and asks the setup questions — artifact store (any
+`keel/config.yaml`, and asks the setup questions — artifact store (any
 registered backend or `+` combination), Strict TDD, security review.
 
 ## Using it
@@ -134,7 +136,7 @@ Inside any installed agent:
 
 | Command | Purpose |
 |---------|---------|
-| `/sdd:init` | bootstrap openspec/ + stack detection |
+| `/sdd:init` | bootstrap keel/ + stack detection |
 | `/sdd:new <change>` | explore + proposal |
 | `/sdd:continue` | next dependency-ready phase |
 | `/sdd:ff` | planning in one shot (propose→spec→clarify→design→blast-radius→tasks) |
@@ -164,14 +166,14 @@ sdd guard install     # universal git pre-commit guard (any agent, any human)
   change is mapped with file:line evidence (call sites, routes, tables, published
   APIs, tests); each BREAKS row must become a task or the pipeline blocks.
 - **Postmortem learning** — after archive, plan vs git reality is reconciled into
-  `openspec/lessons/`, and recurring patterns become PROPOSED steering updates
+  `keel/lessons/`, and recurring patterns become PROPOSED steering updates
   (never auto-applied). The system gets sharper with use.
 - **Drift detection** — `git log` of touched files vs artifact dates, classified:
   `CODE_UNTRACKED` / `SPEC_STALE` / `DESIGN_STALE` / `ARTIFACT_UNDONE`.
-- **Steering docs** — `openspec/steering/{product,tech,structure}.md` refreshed after
+- **Steering docs** — `keel/steering/{product,tech,structure}.md` refreshed after
   every apply batch; sessions start with truth, not archaeology.
 - **Stack-agnostic** — `stack-detector` verifies real test/lint commands into
-  `openspec/config.yaml`; downstream phases read config, never assume a language.
+  `keel/config.yaml`; downstream phases read config, never assume a language.
 - **Reviewer protection** — 400-line forecast per change; oversized work needs
   chained PRs (stacked / feature-branch chain) or an explicit `size:exception`.
 - **Forced reversibility & observability** — design.md cannot ship without its

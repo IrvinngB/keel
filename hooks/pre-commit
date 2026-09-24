@@ -1,8 +1,8 @@
 #!/bin/sh
-# keel commit guard v3
+# keel commit guard v4
 # Universal git pre-commit hook — works with ANY agent or human.
 #
-# 1. Blocks `git commit` while an ACTIVE change (openspec/changes/<c>/tasks.md)
+# 1. Blocks `git commit` while an ACTIVE change (keel/changes/<c>/tasks.md)
 #    has unchecked tasks.
 # 2. Dependency audit: warns when lockfiles are staged; blocks with
 #    SDD_DEPS_STRICT=1 if an active change's apply-progress.md does not record
@@ -19,14 +19,14 @@ run_chained() {
 }
 
 [ "${SDD_ALLOW_COMMIT}" = "1" ] && run_chained "$@"
-[ -d "openspec/changes" ] || run_chained "$@"
+[ -d "keel/changes" ] || run_chained "$@"
 
 # --- 1. unchecked tasks -------------------------------------------------------
 offenders=""
-for tasks in openspec/changes/*/tasks.md; do
+for tasks in keel/changes/*/tasks.md; do
   [ -f "$tasks" ] || continue
   # defense in depth: single-level glob never descends into archive/
-  case "$tasks" in openspec/changes/archive/*) continue ;; esac
+  case "$tasks" in keel/changes/archive/*) continue ;; esac
   pending=$(grep -c '^[[:space:]]*- \[ \]' "$tasks" 2>/dev/null)
   [ -n "$pending" ] || pending=0
   if [ "$pending" -gt 0 ]; then
@@ -64,7 +64,7 @@ if [ -n "$locks" ]; then
   printf '%s\n' "  → verify each added package is recorded in apply-progress.md (deps: name, purpose, license, overlap). Full audit: run the sdd-security review." >&2
   if [ "${SDD_DEPS_STRICT}" = "1" ]; then
     recorded=0
-    for ap in openspec/changes/*/apply-progress.md; do
+    for ap in keel/changes/*/apply-progress.md; do
       [ -f "$ap" ] || continue
       grep -qi 'dependenc' "$ap" && recorded=1
     done

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Breaking
+
+- Artifacts moved from `openspec/` to `keel/`, and the files backend is now named
+  `files` (was `openspec`). `openspec/` is the directory of OpenSpec, a different tool:
+  sharing it mixed two tools' contracts, and the commit guard blocked OpenSpec users
+  whose own tasks were unchecked. Keel no longer reads or guards `openspec/`.
+  Migrate with `git mv openspec keel` and `artifact_store: files`; `sdd status` and
+  `sdd doctor` detect an old Keel `openspec/` (its config has `artifact_store:`) and
+  print this hint. Then re-run `sdd guard install`: guards older than v4 check
+  `openspec/` and let every commit through; `sdd doctor` reports them as OUTDATED.
+
 ### Added
 
 - Community files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue

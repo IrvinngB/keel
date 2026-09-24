@@ -16,8 +16,8 @@ test('install writes an executable guard that blocks commits with unchecked task
   assert.match(read(hook(dir)), /^# keel commit guard v\d+$/m);
   if (process.platform !== 'win32') assert.ok(fs.statSync(hook(dir)).mode & 0o100);
 
-  assert.ok(tryCommit(dir, env).ok, 'no openspec/ yet: commit allowed');
-  write(path.join(dir, 'openspec', 'changes', 'feat-a', 'tasks.md'), PENDING_TASKS);
+  assert.ok(tryCommit(dir, env).ok, 'no keel/ yet: commit allowed');
+  write(path.join(dir, 'keel', 'changes', 'feat-a', 'tasks.md'), PENDING_TASKS);
   const blocked = tryCommit(dir, env);
   assert.equal(blocked.ok, false);
   assert.match(blocked.out, /feat-a: 1 unchecked task/);
@@ -89,7 +89,7 @@ test('migrates a v2 guard with an inlined chain to a chained file', () => {
   const r = sdd(dir, env, 'guard', 'install');
   assert.equal(r.status, 0, r.out);
   assert.equal(read(chained(dir)), '#!/bin/sh\necho legacy-chain\n');
-  assert.match(read(hook(dir)), /# keel commit guard v3/);
+  assert.match(read(hook(dir)), /# keel commit guard v4/);
   assert.match(tryCommit(dir, env).out, /legacy-chain/);
 });
 
@@ -102,7 +102,7 @@ test('honors core.hooksPath instead of writing a hook git never runs', () => {
   assert.ok(fs.existsSync(path.join(dir, '.githooks', 'pre-commit')));
   assert.equal(fs.existsSync(hook(dir)), false);
 
-  write(path.join(dir, 'openspec', 'changes', 'feat-a', 'tasks.md'), PENDING_TASKS);
+  write(path.join(dir, 'keel', 'changes', 'feat-a', 'tasks.md'), PENDING_TASKS);
   assert.equal(tryCommit(dir, env).ok, false, 'the guard actually runs');
   assert.match(sdd(dir, env, 'doctor').out, /commit guard\s+installed/);
 });
@@ -145,7 +145,7 @@ test('guard --dry-run touches nothing', () => {
   write(hook(dir), original, 0o755);
   sdd(dir, env, 'guard', 'install');
   sdd(dir, env, 'guard', 'remove', '--dry-run');
-  assert.match(read(hook(dir)), /# keel commit guard v3/, 'remove --dry-run left the guard');
+  assert.match(read(hook(dir)), /# keel commit guard v4/, 'remove --dry-run left the guard');
   assert.equal(read(chained(dir)), original);
 });
 
@@ -158,4 +158,24 @@ test('detects husky at the repo root when run from a subdirectory', () => {
   assert.equal(r.status, 0, r.out);
   assert.match(r.out, /husky may regenerate/);
   assert.ok(fs.existsSync(path.join(dir, '.husky', '_', 'pre-commit')));
+});
+
+test('ignores openspec/, which belongs to OpenSpec', () => {
+  const { dir, env } = repo();
+  sdd(dir, env, 'guard', 'install');
+  write(path.join(dir, 'openspec', 'changes', 'their-change', 'tasks.md'), PENDING_TASKS);
+  assert.ok(tryCommit(dir, env).ok, 'an OpenSpec user is never blocked by Keel');
+});
+
+test('doctor flags a guard from before keel/ and reinstall fixes it', () => {
+  const { dir, env } = repo();
+  const old = '#!/bin/sh\n# keel commit guard v3\n[ -d "openspec/changes" ] || exit 0\nexit 0\n';
+  write(hook(dir), old, 0o755);
+  write(path.join(dir, 'keel', 'changes', 'feat-a', 'tasks.md'), PENDING_TASKS);
+  assert.ok(tryCommit(dir, env).ok, 'precondition: the old guard lets it through');
+  assert.match(sdd(dir, env, 'doctor').out, /commit guard\s+OUTDATED \(v3/);
+
+  sdd(dir, env, 'guard', 'install');
+  assert.match(sdd(dir, env, 'doctor').out, /commit guard\s+installed/);
+  assert.equal(tryCommit(dir, env).ok, false);
 });
