@@ -94,8 +94,10 @@ the methodology, Keel is the project.
 ### Every other agent
 
 ```bash
-npm install -g github:IrvinngB/keel          # puts `sdd` on PATH (Windows included)
-# or: git clone https://github.com/IrvinngB/keel && cd keel && ln -s "$PWD/bin/sdd" ~/.local/bin/sdd
+npx keel-sdd install opencode --project      # nothing to install first, or put `sdd` on PATH:
+npm install -g keel-sdd                      # Windows included; every `sdd ...` below then works
+# latest main: npm install -g github:IrvinngB/keel
+# from a clone: ln -s "$PWD/bin/sdd" ~/.local/bin/sdd
 
 sdd install opencode --user                  # global: ~/.config/opencode/{agent,command,skills}
 sdd install opencode --project               # per-repo: .opencode/{agent,command} + .agents/skills
