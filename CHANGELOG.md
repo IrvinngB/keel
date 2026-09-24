@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-09-24
+
+Keel moves its artifacts to `keel/` so it can live next to OpenSpec, the commit guard
+works with hook managers, worktrees and Windows, and the CLI has a test suite.
+Upgrading from 0.3: run `sdd doctor` in each project, it prints every migration step.
 
 ### Breaking
 
@@ -29,6 +33,8 @@
 
 ### Fixed
 
+- `sdd doctor` no longer suggests `/sdd:init` while an old Keel `openspec/` is waiting
+  to be migrated, which would have created an empty `keel/` beside it.
 - `sdd status` keeps its columns aligned when a change lists every planning phase.
 - The commit guard is installed where git actually runs hooks
   (`git rev-parse --git-path hooks`): it honors `core.hooksPath` (husky, lefthook),

@@ -451,7 +451,7 @@ function main() {
       warnings.push(...legacyFindings());
       for (const w of warnings) say(`\n${w}`);
       say(`\nproject: ${process.cwd()}`);
-      say(`  keel/                ${fs.existsSync(ARTIFACTS) ? 'yes' : 'NO — run /sdd:init'}`);
+      say(`  keel/                ${fs.existsSync(ARTIFACTS) ? 'yes' : legacyArtifactDir() ? 'NO — migrate openspec/ first (see notice), do not run init' : 'NO — run /sdd:init'}`);
       if (legacyArtifactDir()) say(`  notice               ${LEGACY_HINT}`);
       else if (fs.existsSync('openspec')) say('  openspec/            not Keel\'s (OpenSpec uses it) — ignored');
       say(`  active changes       ${activeChanges().length}`);
