@@ -1,6 +1,6 @@
 {
   "name": "keel-sdd",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Spec-Driven Development pipeline for any AI coding agent",
   "license": "MIT",
   "repository": {
