@@ -77,6 +77,8 @@ Then:
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(cli): ...`,
   `fix(core): ...`, `docs: ...`, `build: ...`, `chore: ...`.
 - Add a line under an `Unreleased` heading in `CHANGELOG.md` for user-visible changes.
+- If you change `README.md`, `docs/install.md` or this file, update the Spanish version in
+  `docs/es/` (a test checks that the structure matches).
 - Keep PRs under roughly 400 changed lines, excluding `adapters/`. Split larger work
   into stacked PRs, the same rule Keel enforces on its users.
 
