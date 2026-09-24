@@ -1,0 +1,27 @@
+{
+  "name": "keel-sdd",
+  "version": "0.3.0",
+  "description": "Spec-Driven Development pipeline for any AI coding agent",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IrvinngB/keel.git"
+  },
+  "bin": {
+    "sdd": "bin/sdd"
+  },
+  "files": [
+    "bin/",
+    "build/",
+    "core/",
+    "adapters/",
+    "hooks/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node bin/sdd build",
+    "test": "node --test"
+  }
+}

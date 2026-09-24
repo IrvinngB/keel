@@ -1,0 +1,4 @@
+# Shell hooks and the CLI must keep LF on every checkout: sh fails on CRLF.
+bin/sdd text eol=lf
+hooks/** text eol=lf
+*.sh text eol=lf

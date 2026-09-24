@@ -15,7 +15,8 @@ const flagVals = Object.fromEntries(
 );
 const pos = args.slice(1).filter((a) => !a.startsWith('--'));
 const DRY = flags.has('--dry-run');
-const HOME = process.env.HOME || '';
+// os.homedir() also covers Windows (no $HOME), but throws when no home can be resolved.
+const HOME = (() => { try { return require('os').homedir(); } catch (e) { return process.env.HOME || ''; } })();
 
 function die(msg) { console.error(`sdd: ${msg}`); process.exit(1); }
 function say(...m) { console.log(...m); }
@@ -300,7 +301,7 @@ function installAgent(id, scope) {
     if (dest) upsertBlock(scope === 'user' ? expand(dest) : path.join(process.cwd(), dest), blockPath, id);
     else say(`no verified ${scope}-level ${cf.name} path for ${r.displayName} — append ${blockPath} to your ${cf.name} manually.`);
   }
-  if (cf && !r.hooks && scope === 'project' && fs.existsSync(path.join('.git', 'hooks'))) {
+  if (cf && !r.hooks && scope === 'project' && hooksDir()) {
     say(`${r.displayName} has no native commit hook — ${DRY ? 'would install' : 'installing'} the universal git guard.`);
     if (!DRY) runGuard('install');
   }
@@ -454,14 +455,16 @@ function main() {
           if (!bad.length) for (const n of m[1].split('+')) say(`  round-trip ${n.padEnd(11)}${probeBackend(n)}`);
         }
       } catch (e) { /* no config yet */ }
-      const hook = path.join('.git', 'hooks', 'pre-commit');
-      const installed = fs.existsSync(hook) && ownsHook(fs.readFileSync(hook, 'utf8'));
-      say(`  commit guard         ${installed ? 'installed' : 'NOT installed — sdd guard install'}`);
+      const hdir = hooksDir();
+      const hook = hdir && path.join(hdir, 'pre-commit');
+      const installed = Boolean(hook && fs.existsSync(hook) && ownsHook(fs.readFileSync(hook, 'utf8')));
+      say(`  commit guard         ${!hdir ? 'n/a — not a git repository' : installed ? `installed (${path.relative(process.cwd(), hook)})` : 'NOT installed — sdd guard install'}`);
       say(`  dialect in use       ${dialect().name}`);
       return;
     }
 
     case 'guard':
+      if (DRY) return say(`would ${pos[0] || 'install'} the commit guard — dry run, nothing was written.`);
       return runGuard(pos[0] || 'install');
 
     case undefined:
@@ -508,46 +511,74 @@ function probeBackend(name) {
   return 'cannot be verified offline — ask your agent to SAVE then LOAD a test key';
 }
 
-const GUARD_MARKER = '# keel commit guard v2';
-const ownsHook = (text) => text.includes(GUARD_MARKER);
+const GUARD_MARKER = /^# keel commit guard v\d+$/m;
+const ownsHook = (text) => GUARD_MARKER.test(text);
+const CHAINED = 'pre-commit.keel-chained';
+// v2 inlined the user's original hook into the guard; v3 keeps it as its own file.
+const LEGACY_CHAIN = /# --- chained original pre-commit ---\r?\n([\s\S]*?)\r?\n# --- end chain ---/;
+
+// Where git actually runs hooks: honors core.hooksPath, worktrees, submodules and subdirs.
+function hooksDir() {
+  try {
+    const out = cp.execFileSync('git', ['rev-parse', '--git-path', 'hooks'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return path.resolve(process.cwd(), out.trim());
+  } catch (e) { return null; }
+}
+
+function hooksPathNotice() {
+  let configured = '';
+  try { configured = cp.execFileSync('git', ['config', 'core.hooksPath'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { /* unset */ }
+  if (!configured) return;
+  let top = process.cwd();
+  try { top = cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (e) { /* bare repo */ }
+  const at = (f) => fs.existsSync(path.join(top, f));
+  const manager = at('.husky') ? 'husky' : ['lefthook.yml', '.lefthook.yml', 'lefthook.yaml'].some(at) ? 'lefthook' : null;
+  say(`notice: core.hooksPath is set (${configured}), so the guard was installed there.` +
+    (manager ? ` ${manager} may regenerate that directory; if the guard disappears, re-run sdd guard install.` : ''));
+}
 
 function runGuard(action) {
-  const dir = path.join('.git', 'hooks');
-  if (!fs.existsSync(dir)) die('not a git repository (no .git/hooks)');
+  const dir = hooksDir();
+  if (!dir) die('not a git repository');
   const target = path.join(dir, 'pre-commit');
-  const CHAIN_START = '# --- chained original pre-commit ---';
-  const CHAIN_END = '# --- end chain ---';
-  const chainRe = /# --- chained original pre-commit ---\n([\s\S]*?)\n# --- end chain ---/;
+  const chained = path.join(dir, CHAINED);
+  const rel = path.relative(process.cwd(), target) || target;
+  const cur = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null;
+
   if (action === 'remove') {
-    if (fs.existsSync(target) && ownsHook(fs.readFileSync(target, 'utf8'))) {
-      const m = fs.readFileSync(target, 'utf8').match(chainRe);
-      if (m) {
-        fs.writeFileSync(target, '#!/bin/sh\n' + m[1] + '\n', { mode: 0o755 });
-        say('commit guard removed — original chained pre-commit restored.');
-      } else { fs.rmSync(target); say('commit guard removed.'); }
-    } else say('no Keel guard found at .git/hooks/pre-commit');
+    if (cur === null || !ownsHook(cur)) return say(`no Keel guard found at ${rel}`);
+    const legacy = cur.match(LEGACY_CHAIN);
+    if (fs.existsSync(chained)) {
+      fs.renameSync(chained, target);
+      say('commit guard removed — original pre-commit restored.');
+    } else if (legacy) {
+      fs.writeFileSync(target, '#!/bin/sh\n' + legacy[1] + '\n');
+      fs.chmodSync(target, 0o755);
+      say('commit guard removed — original chained pre-commit restored.');
+    } else { fs.rmSync(target); say('commit guard removed.'); }
     return;
   }
-  const template = fs.readFileSync(path.join(ROOT, 'hooks', 'pre-commit'), 'utf8');
-  let chain = null;
-  if (fs.existsSync(target)) {
-    const cur = fs.readFileSync(target, 'utf8');
-    const m = cur.match(chainRe);
-    if (m) chain = m[1]; // reinstall: preserve the user's original
-    else if (ownsHook(cur)) {
-      fs.writeFileSync(target, template, { mode: 0o755 });
-      say('commit guard updated.');
-      return;
-    } else chain = cur.split('\n').filter((l) => !l.startsWith('#!')).join('\n');
+  if (action !== 'install') die(`unknown guard action "${action}" — install | remove`);
+
+  // A CRLF checkout of hooks/pre-commit would break sh ("exit 0\r").
+  const template = fs.readFileSync(path.join(ROOT, 'hooks', 'pre-commit'), 'utf8').replace(/\r\n/g, '\n');
+  fs.mkdirSync(dir, { recursive: true });
+  if (cur !== null && !ownsHook(cur)) {
+    if (fs.existsSync(chained)) die(`${rel} is not a Keel guard and ${CHAINED} already exists — resolve by hand; nothing was written.`);
+    // Keep the original hook intact (any interpreter, same mode): the guard execs it last.
+    fs.renameSync(target, chained);
+    say(`existing pre-commit kept as ${CHAINED} — it runs after the guard checks.`);
+  } else if (cur !== null) {
+    const legacy = cur.match(LEGACY_CHAIN);
+    if (legacy && !fs.existsSync(chained)) {
+      fs.writeFileSync(chained, '#!/bin/sh\n' + legacy[1] + '\n', { mode: 0o755 });
+      say(`migrated the chained original pre-commit to ${CHAINED}.`);
+    }
   }
-  let content = template;
-  if (chain && chain.trim()) {
-    // chain runs AFTER all guard checks, just before the final exit
-    content = template.replace(/exit 0\n$/, () => `${CHAIN_START}\n${chain}\n${CHAIN_END}\n\nexit 0\n`);
-    say('existing pre-commit detected — chained to run after the guard checks.');
-  }
-  fs.writeFileSync(target, content, { mode: 0o755 });
-  say('commit guard installed → .git/hooks/pre-commit');
+  fs.writeFileSync(target, template, { mode: 0o755 });
+  fs.chmodSync(target, 0o755);
+  say(`commit guard ${cur !== null && ownsHook(cur) ? 'updated' : 'installed'} → ${rel}`);
+  hooksPathNotice();
 }
 
 main();
