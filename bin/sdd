@@ -385,9 +385,10 @@ function main() {
         };
       });
       const w = Math.max(6, ...rows.map((r) => r.change.length));
-      say('CHANGE'.padEnd(w), 'PHASES'.padEnd(48), 'TASKS', 'GUARD', 'STATE');
+      const pw = Math.max(6, ...rows.map((r) => r.phases.length));
+      say('CHANGE'.padEnd(w), 'PHASES'.padEnd(pw), 'TASKS', 'GUARD   ', 'STATE');
       for (const r of rows)
-        say(r.change.padEnd(w), r.phases.padEnd(48), r.tasks.padEnd(5), r.guard.padEnd(8), r.state);
+        say(r.change.padEnd(w), r.phases.padEnd(pw), r.tasks.padEnd(5), r.guard.padEnd(8), r.state);
       say(`\nnext: ${dialect().next}${rows.some((r) => r.guard === 'PENDING') ? '  ⚠ a change needs a workload decision first' : ''}`);
       return;
     }

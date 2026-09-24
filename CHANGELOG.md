@@ -21,11 +21,15 @@
   on Linux, macOS and Windows with Node 18 and 22.
 - Test suite (`npm test`, `node:test`, zero dependencies) covering the commit guard,
   context-block upserts, `--context-file` path checks and dry runs.
+- README reorganized around a pitch, quick start, real `sdd status` output and an
+  honest comparison with OpenSpec and spec-kit; install details moved to
+  `docs/install.md`.
 - `package.json` with a `sdd` bin: `npm install -g github:IrvinngB/keel` works on
   every platform, including Windows.
 
 ### Fixed
 
+- `sdd status` keeps its columns aligned when a change lists every planning phase.
 - The commit guard is installed where git actually runs hooks
   (`git rev-parse --git-path hooks`): it honors `core.hooksPath` (husky, lefthook),
   linked worktrees, submodules and subdirectories. Before, it was written to
