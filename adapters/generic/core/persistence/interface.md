@@ -50,7 +50,7 @@ Plus shared rules every backend inherits:
 
 `config` is the one key that names the backend, so it cannot be located through the
 backend. The orchestrator always resolves it at the files-backend location (see
-`openspec.md`); after that every phase LOADs `config` like any other key. A `+`
+`files.md`); after that every phase LOADs `config` like any other key. A `+`
 combination may mirror `config` to the other backends, but the file copy stays
 authoritative.
 
@@ -59,8 +59,8 @@ authoritative.
 `artifact_store` inside `config`:
 
 ```yaml
-artifact_store: openspec          # single backend
-artifact_store: openspec+sqlite   # combination: write ALL, read in listed order
+artifact_store: files             # single backend
+artifact_store: files+sqlite      # combination: write ALL, read in listed order
 artifact_store: none              # conversation-only, warn about loss
 ```
 
@@ -75,7 +75,7 @@ SAVEs `<change>/archive-report`; the orchestrator then SAVEs `<change>/state` wi
 `status: archived` and `archived_on`.
 
 A backend with native directories MAY relocate the change as a finalization step
-(the files backend does — see `openspec.md`) as long as every key keeps resolving.
+(the files backend does — see `files.md`) as long as every key keeps resolving.
 A backend without directories (SQLite, memory servers, MCP stores) needs nothing more: the
 `status: archived` flag IS the archive, and its keys are simply never written again.
 
@@ -83,7 +83,7 @@ A backend without directories (SQLite, memory servers, MCP stores) needs nothing
 
 | Key | Doc | Shareable | Cross-session | Needs |
 |-----|-----|-----------|---------------|-------|
-| `openspec` | openspec.md | ✅ (git) | via repo | — (always available) |
+| `files` | files.md | ✅ (git) | via repo | — (always available) |
 | `sqlite` | sqlite.md | ❌ local file | ✅ | `sqlite3` CLI |
 | `mcp-generic` | mcp-generic.md | ❌ | depends on server | any MCP store with 3 mappable tools |
 
