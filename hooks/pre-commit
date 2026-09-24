@@ -1,5 +1,5 @@
 #!/bin/sh
-# keel commit guard v2
+# keel commit guard v3
 # Universal git pre-commit hook — works with ANY agent or human.
 #
 # 1. Blocks `git commit` while an ACTIVE change (openspec/changes/<c>/tasks.md)
@@ -9,10 +9,17 @@
 #    "dependencies:".
 #
 # Bypass (deliberate):  SDD_ALLOW_COMMIT=1 git commit -m "..."
+# A pre-existing hook is kept as pre-commit.keel-chained and runs last.
 # Exit: 0 = allow, 1 = block.
 
-[ "${SDD_ALLOW_COMMIT}" = "1" ] && exit 0
-[ -d "openspec/changes" ] || exit 0
+chained="$(dirname "$0")/pre-commit.keel-chained"
+run_chained() {
+  if [ -x "$chained" ]; then exec "$chained" "$@"; fi
+  exit 0
+}
+
+[ "${SDD_ALLOW_COMMIT}" = "1" ] && run_chained "$@"
+[ -d "openspec/changes" ] || run_chained "$@"
 
 # --- 1. unchecked tasks -------------------------------------------------------
 offenders=""
@@ -68,4 +75,4 @@ if [ -n "$locks" ]; then
   fi
 fi
 
-exit 0
+run_chained "$@"
