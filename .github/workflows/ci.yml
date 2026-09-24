@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: |
+          node --check bin/sdd
+          node --check build/generate.js
+          sh -n hooks/pre-commit
+      - name: Regenerate adapters
+        run: node bin/sdd build
+      - name: Adapters are in sync with core
+        run: |
+          if [ -n "$(git status --porcelain adapters/)" ]; then
+            git status --porcelain adapters/
+            echo "::error::adapters/ is out of date. Run 'node bin/sdd build' and commit the result."
+            exit 1
+          fi
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
