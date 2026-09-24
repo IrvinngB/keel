@@ -13,6 +13,12 @@ way are the easiest to merge.
   is how rows move from Experimental to Tested.
 - Be kind. This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Keel is developed with Keel
+
+Changes that alter behavior go through the pipeline, and their artifacts in `keel/`
+are part of the PR. [AGENTS.md](AGENTS.md) has the rules, including which Keel version
+runs the pipeline. Reviewers read the proposal and spec first, then the code.
+
 ## Setup
 
 Requirements: Node.js 18+ and git. There is nothing to install.

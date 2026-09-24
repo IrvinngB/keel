@@ -3,3 +3,12 @@
 .claude/settings.local.json
 adapters.build/
 adapters.old/
+
+# Local agent installs while working on Keel (use --user scope; see AGENTS.md)
+.agents/
+.opencode/
+.gemini/
+.sdd/
+# Transient files written by sdd doctor or the sqlite backend
+keel/.sdd-doctor-probe
+keel/.sdd-store.db
