@@ -80,6 +80,19 @@ Then:
 - Keep PRs under roughly 400 changed lines, excluding `adapters/`. Split larger work
   into stacked PRs, the same rule Keel enforces on its users.
 
+## Releasing (maintainers)
+
+The version lives in `package.json`, `build/manifest.json` and
+`.claude-plugin/marketplace.json`; a test fails if they disagree.
+
+1. `npm version <patch|minor> --no-git-tag-version` bumps `package.json`, syncs the other
+   fields and regenerates `adapters/`.
+2. Date the `CHANGELOG.md` heading, commit `chore: release X.Y.Z`, open a PR, merge it.
+3. Tag `main`: `git tag -a vX.Y.Z -m "Keel X.Y.Z" && git push origin vX.Y.Z`, then
+   `gh release create vX.Y.Z --notes-file <the changelog section>`.
+4. `npm publish` from a clean checkout of the tag. `prepublishOnly` runs the tests and
+   refuses to publish if `adapters/` is stale.
+
 ## Reporting security issues
 
 Do not open a public issue. See [SECURITY.md](SECURITY.md).

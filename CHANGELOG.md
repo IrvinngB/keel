@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- npm-ready package metadata (homepage, bugs, keywords, public access) and a
+  `prepublishOnly` guard that runs the tests and rejects stale `adapters/`.
+- `npm version` now keeps `build/manifest.json` and the marketplace version in step with
+  `package.json`, and tests fail if any version field or the published `files` list
+  drifts from what the CLI reads at runtime.
+
 ## 0.4.0 - 2026-09-24
 
 Keel moves its artifacts to `keel/` so it can live next to OpenSpec, the commit guard
