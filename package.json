@@ -1,12 +1,26 @@
 {
   "name": "keel-sdd",
   "version": "0.4.0",
-  "description": "Spec-Driven Development pipeline for any AI coding agent",
+  "description": "Spec-driven development for any AI coding agent",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/IrvinngB/keel.git"
   },
+  "homepage": "https://github.com/IrvinngB/keel#readme",
+  "bugs": {
+    "url": "https://github.com/IrvinngB/keel/issues"
+  },
+  "keywords": [
+    "spec-driven-development",
+    "sdd",
+    "ai-agents",
+    "claude-code",
+    "codex",
+    "opencode",
+    "gemini-cli",
+    "agents-md"
+  ],
   "bin": {
     "sdd": "bin/sdd"
   },
@@ -20,8 +34,13 @@
   "engines": {
     "node": ">=18"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "node bin/sdd build",
-    "test": "node --test"
+    "test": "node --test",
+    "version": "node scripts/sync-version.js && node bin/sdd build",
+    "prepublishOnly": "npm test && node bin/sdd build && git diff --exit-code -- adapters"
   }
 }
