@@ -49,8 +49,8 @@ hooks/              ← PreToolUse (Claude) + pre-commit (universal git guard)
 ### Every other agent
 
 ```bash
-git clone https://github.com/IrvinngB/keel && cd keel
-ln -s "$PWD/bin/sdd" ~/.local/bin/sdd        # optional
+npm install -g github:IrvinngB/keel          # puts `sdd` on PATH (Windows included)
+# or: git clone https://github.com/IrvinngB/keel && cd keel && ln -s "$PWD/bin/sdd" ~/.local/bin/sdd
 
 sdd build                                    # regenerate adapters (already committed)
 sdd install opencode --user                  # global: ~/.config/opencode/{agent,command,skills}
