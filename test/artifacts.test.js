@@ -47,3 +47,16 @@ test('status shows the migration hint even with active keel/ changes', () => {
   assert.match(out, /git mv openspec keel/);
   assert.match(out, /feat-a/);
 });
+
+test('status columns stay aligned when a change has every planning phase', () => {
+  const { dir, env } = repo();
+  const long = path.join(dir, 'keel', 'changes', 'a-long-change-name');
+  for (const f of ['exploration.md', 'proposal.md', 'clarifications.md', 'design.md', 'blast-radius.md']) write(path.join(long, f), '#\n');
+  write(path.join(long, 'specs', 'x', 'spec.md'), '#\n');
+  write(path.join(long, 'tasks.md'), '- [x] a\n- [ ] b\n');
+  write(path.join(dir, 'keel', 'changes', 'short', 'proposal.md'), '#\n');
+  const lines = sdd(dir, env, 'status').out.split('\n').slice(0, 3);
+  const col = (line, text) => line.indexOf(text);
+  assert.equal(col(lines[1], '1/2'), col(lines[0], 'TASKS'));
+  assert.equal(col(lines[2], '-'), col(lines[0], 'TASKS'));
+});
