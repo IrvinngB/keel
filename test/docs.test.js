@@ -71,3 +71,25 @@ test('CHANGELOG records Antigravity under Unreleased and leaves the 0.3.0 entry 
   assert.match(unreleased, /Antigravity/);
   assert.ok(log.includes('- Antigravity (`agy`) is not supported yet: its project-level skills and commands paths\n  are unconfirmed.'));
 });
+
+// ---- Collision warnings: docs advise --project, mark opencode UNVERIFIED and drop the old wording ----
+
+for (const [f, heading, advice, unverified, voseo] of [
+  ['docs/install.md', 'Skills are installed once', /another SDD toolkit/, /unverified/i, null],
+  ['docs/es/instalacion.md', 'Los skills se instalan una sola vez', /otro toolkit SDD/, /sin verificar/i, /\b(tenés|podés|querés|sabés|usá|mirá|eliminá|borrá|instalá)\b/],
+]) {
+  test(`${f} recommends --project when another SDD toolkit is global and marks opencode as unverified`, () => {
+    const body = section(read(f), heading);
+    assert.match(body, advice);
+    assert.match(body, /--project/);
+    assert.match(body, unverified);
+    assert.doesNotMatch(read(f), /stale|earlier install|discover the sdd skills twice/i);
+    if (voseo) assert.doesNotMatch(body, voseo);
+  });
+}
+
+test('CHANGELOG Unreleased records the foreign-file collision warnings', () => {
+  const unreleased = read('CHANGELOG.md').split(/^## 0\./m)[0];
+  assert.match(unreleased, /same name as a Keel definition/);
+  assert.doesNotMatch(unreleased, /earlier install/i);
+});
