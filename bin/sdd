@@ -423,6 +423,7 @@ function main() {
 
     case 'doctor': {
       say('agents (from build/manifest.json registry):');
+      const idw = Math.max(...AGENT_IDS.map((i) => i.length));
       const warnings = [];
       for (const id of AGENT_IDS) {
         const r = REGISTRY[id];
@@ -437,7 +438,7 @@ function main() {
           ctx = ` · ${cf.name}: ${has ? 'block present' : inProject ? 'block MISSING' : '—'}`;
         }
         const via = seen.length ? ` · skills in ${seen.join(', ')}` : '';
-        say(`  ${id.padEnd(9)} ${r.status.padEnd(13)} tool ${found === null ? 'n/a' : found ? 'found' : '—'} · project ${inProject ? 'installed' : '—'}${via}${ctx}`);
+        say(`  ${id.padEnd(idw)} ${r.status.padEnd(13)} tool ${found === null ? 'n/a' : found ? 'found' : '—'} · project ${inProject ? 'installed' : '—'}${via}${ctx}`);
         const note = unverifiedNote(id);
         if (note && (found || inProject)) warnings.push(note);
         const seenUser = HOME ? userSkillDirs(id).filter((d) => hasSddEntry(d)) : [];
