@@ -45,10 +45,16 @@ de modo que el mismo archivo es correcto para todos los lectores y no puede
 desincronizarse. La sintaxis propia de cada agente vive solo en el bloque de su archivo
 de contexto y en sus archivos nativos de comando/agente. El alcance de usuario (`--user`)
 conserva el directorio de skills propio de cada agente, porque un `~/.agents/skills` a
-nivel de usuario solo está verificado para Codex. La única forma de terminar con una copia
-doble real es un resto de una instalación anterior (por ejemplo `.kimi/skills`): `sdd
-install` avisa y `sdd doctor` reporta "would discover the sdd skills twice"; elimina tú
-mismo las entradas `sdd*` sobrantes — sdd nunca borra tus archivos.
+nivel de usuario solo está verificado para Codex. Un directorio de skills que contiene un
+skill con el mismo nombre que un skill de Keel de ese agente, posiblemente de otra
+herramienta, puede descubrirse dos veces: `sdd install` avisa y `sdd doctor` reporta "may
+discover ... twice". sdd nunca modifica tus archivos. Si otro toolkit SDD está instalado de
+forma global, instala Keel con `--project` para que ambos no compartan un directorio a nivel
+de usuario. `sdd doctor` también lista, solo cuando existen, una clave `agent` de
+`opencode.json` con un nombre de Keel, un directorio `commands/` o `agents/` junto a
+`command/` o `agent/` de opencode, y skills con el mismo nombre en otros directorios de
+lectura (`info:`). Qué prefiere opencode cuando el mismo nombre aparece en varios lugares
+está sin verificar, igual que las rutas de `opencode.json` y los directorios en plural.
 
 ## Bloques de contexto por agente
 
