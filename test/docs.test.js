@@ -5,7 +5,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+// Windows checks .md files out with CRLF; the assertions below are written against LF.
+const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 
 // English source -> Spanish translation. The translation must keep the same skeleton,
 // so a section added to one language and not the other fails here.
