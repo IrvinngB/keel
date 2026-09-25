@@ -158,7 +158,7 @@
       "unverifiedFields": [
         "subagents"
       ],
-      "notes": "Docs confirm skills in .agents/skills (repo) and ~/.agents/skills (user), invoked as $skill-name, and AGENTS.md read by default (global ~/.codex/AGENTS.md). Commands are emitted as skills; whether custom prompts are deprecated was not confirmed. Skill bodies are invocation-neutral (manifest.neutralInvoke) and installed once in the shared .agents/skills dir that opencode, Kimi and Gemini also read; the Codex-specific invocation syntax lives only in the AGENTS.md block.",
+      "notes": "Docs confirm skills in .agents/skills (repo) and ~/.agents/skills (user), invoked as $skill-name, and AGENTS.md read by default (global ~/.codex/AGENTS.md). Commands are emitted as skills; whether custom prompts are deprecated was not confirmed. Skill bodies are invocation-neutral (manifest.neutralInvoke) and installed once in the shared .agents/skills dir that opencode, Kimi, Gemini and Antigravity also read; the Codex-specific invocation syntax lives only in the AGENTS.md block.",
       "detect": [
         "~/.codex"
       ],
@@ -368,6 +368,78 @@
         "contextFile": {
           "project": "AGENTS.md",
           "user": null
+        }
+      }
+    },
+    "antigravity": {
+      "displayName": "Antigravity",
+      "status": "experimental",
+      "unverifiedFields": [
+        "detect",
+        "userSkillsDir",
+        "userContextFile",
+        "invoke",
+        "subagents"
+      ],
+      "notes": "Docs checked 2026-09-24 (https://antigravity.google/docs/skills/ and https://antigravity.google/docs/rules): project skills in .agents/skills (.agent/skills is legacy), user skills in ~/.gemini/config/skills (2.0 and IDE) or ~/.gemini/antigravity-cli/skills (CLI; Keel does not write it, copy by hand), skills invoked as /<skill-name>, context from AGENTS.md (global ~/.gemini/AGENTS.md). Not exercised in a real session; detect dirs come from one machine. A 0.3.0 headless test did not find skills in .agents/skills; the cause is unproven and the docs now say it works. Project scope installs skills once in the shared .agents/skills dir.",
+      "detect": [
+        "~/.gemini/antigravity",
+        "~/.gemini/antigravity-ide",
+        "~/.gemini/antigravity-cli"
+      ],
+      "projectMarkers": [],
+      "invoke": {
+        "cmd": "/sdd-{name}",
+        "agent": "sdd-phase-{short}",
+        "skill": "{name}"
+      },
+      "neutralSkills": true,
+      "skillsRead": [
+        ".agents/skills"
+      ],
+      "args": "the user's arguments",
+      "hooks": false,
+      "emit": {
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-phase-{short}"
+        },
+        "commands": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-{name}"
+        },
+        "contextFile": {
+          "name": "AGENTS.md",
+          "block": "skills",
+          "blockFile": "AGENTS.block.md"
+        }
+      },
+      "install": {
+        "method": "copy",
+        "project": {
+          "root": ".",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".agents/skills"
+            }
+          ]
+        },
+        "user": {
+          "root": "~",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".gemini/config/skills"
+            }
+          ]
+        },
+        "contextFile": {
+          "project": "AGENTS.md",
+          "user": "~/.gemini/AGENTS.md"
         }
       }
     },
