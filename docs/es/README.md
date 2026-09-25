@@ -108,6 +108,7 @@ sdd install opencode --project               # por repo: .opencode/{agent,comman
 sdd install codex --project                  # .agents/skills + bloque en AGENTS.md + commit guard
 sdd install gemini --project                 # .agents/skills + .gemini/commands + bloque en GEMINI.md
 sdd install kimi --project                   # .agents/skills + bloque en AGENTS.md   (experimental)
+sdd install antigravity --project            # .agents/skills + bloque en AGENTS.md   (experimental)
 sdd install generic --project                # cualquier otro agente que respete AGENTS.md: .sdd/core/
                                              # + AGENTS.md (--context-file=GEMINI.md para un 2.º archivo)
 sdd install claude                           # imprime los comandos /plugin de arriba
@@ -115,7 +116,7 @@ sdd install claude                           # imprime los comandos /plugin de a
 
 Usa `--user` en lugar de `--project` para una instalación global (Gemini y Kimi imprimen
 el bloque para que lo pegues en vez de escribirlo: no hay una ruta de contexto a nivel de
-usuario verificada).
+usuario verificada; Antigravity, en cambio, escribe `~/.gemini/AGENTS.md` a nivel de usuario, sin comprobar).
 
 ### Agentes soportados
 
@@ -126,6 +127,7 @@ usuario verificada).
 | Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Experimental (3) |
 | Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
+| Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Experimental (5) |
 | Generic | — | leer el archivo de la fase | single-phase | `AGENTS.md` | Verified |
 
 **Tested** significa que una sesión headless real de ese agente cargó los skills
@@ -138,14 +140,18 @@ volvió a comprobar; los comandos `/sdd-*` generados para opencode no se ejercit
 (2) Que Kimi lea `AGENTS.md` es una inferencia, no está confirmado. (3) Codex no estaba
 disponible para probar. (4) Gemini CLI se está retirando para cuentas individuales en
 favor de Antigravity; Google rechazó la ejecución headless, así que no se pudo probar.
+(5) Antigravity (`agy`) se basa en su documentación (revisada el 2026-09-24) y no se
+ejercitó en una sesión real; sus directorios de detección, la ruta de skills de usuario,
+el archivo de contexto de usuario y la invocación no están verificados.
 
 `sdd install` y `sdd doctor` imprimen los campos `unverified` y las notas de cada agente.
 Gemini CLI lee `GEMINI.md`, no `AGENTS.md`, a menos que lo agregues en
-`context.fileName`; `sdd install gemini` escribe `GEMINI.md`. Antigravity (`agy`) todavía
-no está soportado.
+`context.fileName`; `sdd install gemini` escribe `GEMINI.md`. Keel instala solo
+skills y un bloque en `AGENTS.md` para Antigravity; no escribe comandos, agentes, workflows
+ni hooks. No se comprobó si Antigravity los admite.
 
 Qué escribe el instalador, los directorios de skills compartidos, los bloques de
-contexto por agente, los dry runs y el estado de Antigravity:
+contexto por agente, los dry runs y los detalles de Antigravity:
 [instalacion.md](instalacion.md).
 
 ### En todos los casos, por proyecto

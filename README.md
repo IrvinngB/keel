@@ -106,13 +106,15 @@ sdd install opencode --project               # per-repo: .opencode/{agent,comman
 sdd install codex --project                  # .agents/skills + AGENTS.md block + commit guard
 sdd install gemini --project                 # .agents/skills + .gemini/commands + GEMINI.md block
 sdd install kimi --project                   # .agents/skills + AGENTS.md block   (experimental)
+sdd install antigravity --project            # .agents/skills + AGENTS.md block   (experimental)
 sdd install generic --project                # any other AGENTS.md-respecting agent: .sdd/core/
                                              # + AGENTS.md (--context-file=GEMINI.md for a 2nd file)
 sdd install claude                           # prints the /plugin commands above
 ```
 
 Add `--user` instead of `--project` for a global install (Gemini and Kimi print the
-block to paste instead of writing it: no verified user-level context path).
+block to paste instead of writing it: no verified user-level context path; Antigravity, by
+contrast, writes `~/.gemini/AGENTS.md` at user scope, unverified).
 
 ### Supported agents
 
@@ -123,6 +125,7 @@ block to paste instead of writing it: no verified user-level context path).
 | Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Experimental (3) |
 | Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
+| Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Experimental (5) |
 | Generic | — | read the phase file | single-phase | `AGENTS.md` | Verified |
 
 **Tested** means a real headless session of that agent loaded the installed skills
@@ -134,14 +137,18 @@ were not re-checked; the generated `/sdd-*` opencode commands were not exercised
 (2) Kimi reading `AGENTS.md` is inferred, not confirmed. (3) Codex was not available
 to test. (4) Gemini CLI is being retired for individual accounts in favor of
 Antigravity; the headless run was rejected by Google, so it could not be tested.
+(5) Antigravity (`agy`) comes from its docs (checked 2026-09-24) and was not exercised in
+a real session; its detection dirs, user skills path, user context file and invocation
+are unverified.
 
 `sdd install` and `sdd doctor` print the per-agent `unverified` fields and notes.
 Gemini CLI reads `GEMINI.md`, not `AGENTS.md`, unless you list it in
-`context.fileName`; `sdd install gemini` writes `GEMINI.md`. Antigravity (`agy`) is not
-supported yet.
+`context.fileName`; `sdd install gemini` writes `GEMINI.md`. Keel installs only skills and
+an `AGENTS.md` block for Antigravity; it writes no commands, agents, workflows or hooks.
+Whether Antigravity supports them was not checked.
 
 What the installer writes, shared skill dirs, per-agent context blocks, dry runs and
-the Antigravity status: [docs/install.md](docs/install.md).
+the Antigravity details: [docs/install.md](docs/install.md).
 
 ### In every case, per project
 

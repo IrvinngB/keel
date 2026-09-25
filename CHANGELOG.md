@@ -4,6 +4,10 @@
 
 ### Added
 
+- Experimental Antigravity (`agy`) agent: `sdd install antigravity` writes skills to
+  `.agents/skills` (project) or `~/.gemini/config/skills` (user) plus an `AGENTS.md` block.
+  Its detection dirs, user skills path, user context file, invocation and subagent support
+  are unverified. `sdd doctor` now sizes its id column from the longest registry id.
 - Spanish documentation in `docs/es/`: README, installation details and contributing
   guide. A test fails when a translation drops a section or code block of its English
   source, or when a relative link breaks.
