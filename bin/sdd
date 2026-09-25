@@ -122,6 +122,38 @@ function userSkillDirs(id) {
   return [...new Set([...own, ...(r.skillsRead || []).map((d) => path.join(HOME, d))])];
 }
 
+// Names Keel writes for an agent and scope, read from the adapter tree (never a union across agents).
+// One entry per map row: `top` = top-level names as on disk ('sdd-apply.md', 'sdd-workflow'),
+// `files` = every file path relative to the row's target dir ('sdd/apply.toml'). Cached per process;
+// a missing tree gives [] rather than dying (copyTree reports it when it matters).
+const KEEL_NAMES = new Map();
+function keelNames(id, scope) {
+  const key = `${id}:${scope}`;
+  if (KEEL_NAMES.has(key)) return KEEL_NAMES.get(key);
+  const t = REGISTRY[id].install && REGISTRY[id].install[scope];
+  const out = [];
+  for (const m of (t && t.map) || []) {
+    const src = path.join(ROOT, 'adapters', id, m.from);
+    const files = [];
+    let top = [];
+    const walk = (d, rel) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const r = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) walk(path.join(d, e.name), r); else files.push(r);
+      }
+    };
+    try { top = fs.readdirSync(src).sort(); walk(src, ''); } catch (e) { top = []; }
+    out.push({ from: m.from, to: m.to, top, files: files.sort() });
+  }
+  KEEL_NAMES.set(key, out);
+  return out;
+}
+const skillNames = (id, scope) => keelNames(id, scope).filter((e) => e.from === 'skills').flatMap((e) => e.top);
+const keelEntriesIn = (dir, names) => names.filter((n) => fs.existsSync(path.join(dir, n)));
+const hasKeelEntry = (dir, names) => keelEntriesIn(dir, names).length > 0;
+const capList = (items, n) => (items.length <= n ? items.join(', ') : `${items.slice(0, n).join(', ')}, … and ${items.length - n} more`);
+const NEUTRAL = 'with the same name as a Keel definition, possibly another tool\'s';
+
 function unverifiedNote(id) {
   const r = REGISTRY[id];
   const fields = r.unverifiedFields || [];
@@ -202,10 +234,6 @@ function guardDecision(dir) {
   return /Chain strategy: (?!pending)/.test(t) ? 'resolved' : 'PENDING';
 }
 
-function hasSddEntry(dir) {
-  try { return fs.readdirSync(dir).some((n) => n.startsWith('sdd')); } catch (e) { return false; }
-}
-
 // The shared skills dir says nothing about WHICH agent was installed (skills are written once
 // for every reader), so "installed" means an agent-specific artifact: its own non-shared dirs
 // or its per-agent context-file block.
@@ -214,8 +242,7 @@ function installedInProject(id) {
   if (r.install.method === 'plugin') return r.projectMarkers.some((p) => fs.existsSync(p));
   if (r.install.method === 'floor') return fs.existsSync(path.join('.sdd', 'core'));
   const proj = r.install.project;
-  const own = ((proj && proj.map) || []).map((m) => m.to).filter((d) => d !== SHARED);
-  if (own.some((d) => hasSddEntry(path.join(proj.root, d)))) return true;
+  if (keelNames(id, 'project').some((e) => e.to !== SHARED && hasKeelEntry(path.join(proj.root, e.to), e.files))) return true;
   const cf = r.install.contextFile && r.install.contextFile.project;
   return Boolean(cf && fs.existsSync(cf) && hasBlock(fs.readFileSync(cf, 'utf8'), id));
 }
@@ -298,11 +325,17 @@ function installAgent(id, scope) {
   const base = scope === 'user' ? expand(target.root) : path.join(process.cwd(), target.root);
   const ctxDest = r.emit.contextFile && r.install.contextFile && r.install.contextFile[scope];
   if (ctxDest) assertMarkersSane(scope === 'user' ? expand(ctxDest) : path.join(process.cwd(), ctxDest));
+  const pre = preexisting(id, scope, base);
+  const found = collisions(id, scope, base);
   let total = 0;
   for (const m of target.map) total += copyTree(path.join(src, m.from), path.join(base, m.to));
   say(`${id} (${scope}): ${DRY ? 'would install' : 'installed'} ${total} files → ${base}`);
-  say(DRY ? 'note: dry run — nothing was written.' : 'note: existing same-named files were overwritten; others untouched.');
-  skillsDirNotices(id, target, base);
+  if (DRY) say('note: dry run — nothing was written.');
+  if (pre.length)
+    say(`notice: ${pre.length} existing file(s) ${DRY ? 'would be' : 'will be'} replaced (a previous Keel install or another tool's): ${capList(pre, 10)}.`);
+  for (const i of found.items) if (!i.info) say(i.msg);
+  for (const n of found.notes) say(n);
+  skillsDirNotices(id, target, base, scope);
 
   const cf = r.emit.contextFile;
   if (cf) {
@@ -317,9 +350,9 @@ function installAgent(id, scope) {
   }
 }
 
-// Skills are installed once, in the shared dir, with invocation-neutral bodies. The only real
-// double-discovery left is a stale copy from an older install, so warn about exactly that.
-function skillsDirNotices(id, target, base) {
+// Skills are installed once, in the shared dir, with invocation-neutral bodies. A read dir that
+// holds a skill named like one of this agent's Keel skills may be discovered twice.
+function skillsDirNotices(id, target, base, scope) {
   const r = REGISTRY[id];
   const dests = target.map.map((m) => m.to);
   if (dests.includes(SHARED)) {
@@ -328,10 +361,78 @@ function skillsDirNotices(id, target, base) {
       `They are invocation-neutral; ${r.displayName}-specific syntax lives only in its own context-file block or native files.`);
   }
   for (const d of r.skillsRead || []) {
-    if (dests.includes(d) || !hasSddEntry(path.join(base, d))) continue;
-    say(`warning: ${r.displayName} also reads ${d}, which still holds sdd skills (likely from an earlier install) — ` +
-      `they would be discovered twice. Remove the sdd* entries from ${d}; sdd never deletes your files.`);
+    if (dests.includes(d)) continue;
+    const hits = keelEntriesIn(path.join(base, d), skillNames(id, scope));
+    if (!hits.length) continue;
+    say(`warning: ${r.displayName} also reads ${d}, which holds ${capList(hits, 10)} ${NEUTRAL} — ` +
+      'it may be discovered twice. sdd never changes your files.');
   }
+}
+
+// Existing target files an install is about to write over, as paths relative to the base dir.
+// Runs before copyTree, also under --dry-run, and only reads.
+function preexisting(id, scope, base) {
+  const out = [];
+  for (const e of keelNames(id, scope))
+    for (const f of e.files) {
+      const rel = path.posix.join(e.to, f); // displayed with '/', on every OS
+      if (fs.existsSync(path.join(base, rel))) out.push(rel);
+    }
+  return out.sort();
+}
+
+// Read-only scan for names Keel never writes but another tool may have put next to its files.
+// Every path below is UNVERIFIED (opencode docs were not checked for them): the config file
+// (~/.config/opencode/opencode.json or .jsonc at user level, ./opencode.json or .jsonc at
+// project level), its `agent` key, and the plural commands/ and agents/ dirs beside command/
+// and agent/. JSONC is not parsed (zero dependencies): a parse failure prints one note.
+// Returns { items: [{ label, msg, info? }], notes: [] }.
+function collisions(id, scope, base) {
+  const r = REGISTRY[id];
+  const items = [];
+  const notes = [];
+  const target = r.install && r.install[scope];
+  if (!target) return { items, notes };
+  if (id === 'opencode') {
+    const dir = scope === 'user' ? path.join(base, '.config', 'opencode') : base;
+    const agentKeys = keelNames(id, scope).filter((e) => e.from === 'agent').flatMap((e) => e.top).map((n) => n.replace(/\.md$/, ''));
+    for (const name of ['opencode.json', 'opencode.jsonc']) {
+      const f = path.join(dir, name);
+      if (!fs.existsSync(f)) continue;
+      const shown = path.relative(base, f).split(path.sep).join('/');
+      let doc;
+      try { doc = JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch (e) {
+        notes.push(`note: ${shown} could not be parsed (JSONC?); key check skipped.`);
+        continue;
+      }
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+        notes.push(`note: ${shown} has no agent object; key check skipped.`);
+        continue;
+      }
+      const agent = doc.agent;
+      if (!agent || typeof agent !== 'object' || Array.isArray(agent)) continue; // no agent key: nothing to check
+      for (const k of agentKeys.filter((n) => Object.prototype.hasOwnProperty.call(agent, n)))
+        items.push({ label: `agent key ${k}`, msg: `warning: ${name} agent "${k}" has the same name as a Keel definition, possibly another tool's.` });
+    }
+  }
+  for (const m of target.map) {
+    const b = path.basename(m.to);
+    if (b !== 'agent' && b !== 'command') continue;
+    const plural = path.posix.join(path.posix.dirname(m.to), `${b}s`); // displayed with '/'
+    if (fs.existsSync(path.join(base, plural)))
+      items.push({
+        label: `${plural}/ (unverified)`,
+        msg: `warning: ${plural}/ sits beside ${b}/; which one ${r.displayName} reads is unverified.`,
+      });
+  }
+  // A read dir that any registry agent installs into (SHARED included) holds Keel's own files.
+  const written = new Set([SHARED, ...AGENT_IDS.flatMap((a) => ((REGISTRY[a].install || {})[scope] || { map: [] }).map.map((m) => m.to))]);
+  for (const d of r.skillsRead || []) {
+    if (written.has(d)) continue;
+    for (const n of keelEntriesIn(path.join(base, d), skillNames(id, scope)))
+      items.push({ label: `info: ${d}/${n}`, info: true, msg: `info: ${d}/${n} has the same name as a Keel definition, possibly another tool's.` });
+  }
+  return { items, notes };
 }
 
 function copyTree(src, dst) {
@@ -425,11 +526,13 @@ function main() {
       say('agents (from build/manifest.json registry):');
       const idw = Math.max(...AGENT_IDS.map((i) => i.length));
       const warnings = [];
+      const collisionLines = [];
       for (const id of AGENT_IDS) {
         const r = REGISTRY[id];
         const found = r.detect.length ? r.detect.some((p) => fs.existsSync(expand(p))) : null;
         const inProject = installedInProject(id);
-        const seen = (r.skillsRead || []).filter((d) => hasSddEntry(d));
+        const projNames = skillNames(id, 'project');
+        const seen = (r.skillsRead || []).filter((d) => hasKeelEntry(d, projNames));
         const cf = r.emit.contextFile;
         let ctx = '';
         if (cf) {
@@ -441,16 +544,28 @@ function main() {
         say(`  ${id.padEnd(idw)} ${r.status.padEnd(13)} tool ${found === null ? 'n/a' : found ? 'found' : '—'} · project ${inProject ? 'installed' : '—'}${via}${ctx}`);
         const note = unverifiedNote(id);
         if (note && (found || inProject)) warnings.push(note);
-        const seenUser = HOME ? userSkillDirs(id).filter((d) => hasSddEntry(d)) : [];
+        const userNames = skillNames(id, 'user');
+        const seenUser = HOME ? userSkillDirs(id).filter((d) => hasKeelEntry(d, userNames)) : [];
+        const both = (dirs, names) => capList([...new Set(dirs.flatMap((d) => keelEntriesIn(d, names)))], 10);
         if (seenUser.length > 1 && found)
-          warnings.push(`warning: ${r.displayName} may discover the sdd skills twice at user level — they exist in ${seenUser.join(' and ')}. ` +
-            'Keep one copy and remove the sdd* entries from the other; sdd never deletes your files.');
+          warnings.push(`warning: ${r.displayName} may discover ${both(seenUser, userNames)} twice at user level — ${seenUser.join(' and ')} each hold a skill ${NEUTRAL}. ` +
+            'sdd never changes your files.');
         if (seen.length > 1 && (found || inProject))
-          warnings.push(`warning: ${r.displayName} would discover the sdd skills twice — they exist in ${seen.join(' and ')}. ` +
-            `Skills now live once in ${SHARED}; an older install probably left the other copy. Remove the sdd* entries from the extra dir.`);
+          warnings.push(`warning: ${r.displayName} may discover ${both(seen, projNames)} twice — ${seen.join(' and ')} each hold a skill ${NEUTRAL}. ` +
+            'sdd never changes your files.');
+        const hits = [];
+        for (const [scope, on] of [['user', found && HOME], ['project', inProject]]) {
+          const t = on && r.install && r.install[scope];
+          if (!t || !t.map) continue;
+          const c = collisions(id, scope, scope === 'user' ? expand(t.root) : path.join(process.cwd(), t.root));
+          hits.push(...c.items);
+          warnings.push(...c.notes);
+        }
+        if (hits.length) collisionLines.push(`  ${id}: ${hits.length} item(s) — ${capList(hits.map((i) => i.label), 3)}`);
       }
       warnings.push(...legacyFindings());
       for (const w of warnings) say(`\n${w}`);
+      if (collisionLines.length) say(`\ncollisions (same name as a Keel definition, possibly another tool's):\n${collisionLines.join('\n')}`);
       say(`\nproject: ${process.cwd()}`);
       say(`  keel/                ${fs.existsSync(ARTIFACTS) ? 'yes' : legacyArtifactDir() ? 'NO — migrate openspec/ first (see notice), do not run init' : 'NO — run /sdd:init'}`);
       if (legacyArtifactDir()) say(`  notice               ${LEGACY_HINT}`);
