@@ -1,0 +1,8 @@
+current_phase: apply
+completed: [explore, proposal, spec, clarify, design, blast-radius, tasks, apply]
+open_questions:
+  - clarify defaults Q1-Q7 accepted automatically (user reviews before merge)
+  - stacked on feat/antigravity-support (PR #10)
+  - verify and archive pending
+updated: 2026-09-25
+status: active

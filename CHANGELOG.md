@@ -4,6 +4,14 @@
 
 ### Added
 
+- Install and `sdd doctor` warn about files with the same name as a Keel definition,
+  possibly another tool's, using neutral wording and never changing your files: Keel names
+  now come from each agent's adapter tree instead of the `sdd` prefix, `sdd install` lists
+  the existing files it will replace (or would replace, with `--dry-run`) instead of always
+  claiming an overwrite, and `sdd doctor` adds a collisions section (opencode `agent` keys,
+  plural `commands/` and `agents/` dirs, same-named skills in other read dirs) only when
+  something exists. Those opencode paths are unverified. `--project` is recommended when
+  another SDD toolkit is installed globally.
 - Experimental Antigravity (`agy`) agent: `sdd install antigravity` writes skills to
   `.agents/skills` (project) or `~/.gemini/config/skills` (user) plus an `AGENTS.md` block.
   Its detection dirs, user skills path, user context file, invocation and subagent support

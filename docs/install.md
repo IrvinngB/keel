@@ -41,10 +41,15 @@ one of them installs its skills there and nowhere else. Skill bodies are invocat
 `/skill:sdd-continue`, so the same file is correct for every reader and cannot drift.
 Each agent's own syntax lives only in its context-file block and in its native
 command/agent files. User scope (`--user`) keeps each agent's own skills dir, because a
-user-level `~/.agents/skills` is only verified for Codex. The one way to get a real
-double copy is a leftover from an older install (for example `.kimi/skills`): `sdd
-install` warns and `sdd doctor` reports "would discover the sdd skills twice"; remove the
-extra `sdd*` entries yourself — sdd never deletes your files.
+user-level `~/.agents/skills` is only verified for Codex. A skill dir that holds a skill with
+the same name as a Keel skill of that agent, possibly another tool's, may be discovered twice:
+`sdd install` warns and `sdd doctor` reports "may discover ... twice". sdd never changes your
+files. If another SDD toolkit is installed globally, install Keel with `--project` so the two
+do not share a user-level dir. `sdd doctor` also lists, only when they exist, an `agent` key
+in `opencode.json` with a Keel name, a `commands/` or `agents/` dir beside opencode's
+`command/` or `agent/`, and same-named skills in other read dirs (`info:`). Which one
+opencode prefers when the same name appears in several places is UNVERIFIED, and so are the
+`opencode.json` paths and the plural dirs.
 
 ## Per-agent context blocks
 
