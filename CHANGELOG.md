@@ -4,6 +4,15 @@
 
 ### Added
 
+- Mechanism to keep persistence docs out of the `sdd-workflow` skill: a registry row can set
+  `persistence_docs: side-files`, which keeps `interface.md` and `files.md` in `SKILL.md` and
+  writes the other docs as `persistence/<name>.md` beside it. `side-files` needs a recorded
+  `persistenceDocsVerified` session, and agents sharing `.agents/skills` must agree. Every
+  agent stays `inline`, so no size saving is claimed yet. The persistence interface now states
+  one load rule for inline, side-file and generic installs, and `sdd doctor` warns (exit code
+  unchanged) when the configured backend doc is neither inline nor beside an installed skill.
+  The generator now throws internally and is testable in-process; `sdd build` output and exit
+  codes are unchanged.
 - `sdd doctor` validates the files store read-only: a `store checks` row lists change folders
   without `state.yaml`, unreadable or invalid state (CRLF, quoted values, unknown phases),
   location and date mismatches, missing artifacts of completed phases and bad names. Exit

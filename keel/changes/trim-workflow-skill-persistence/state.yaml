@@ -1,0 +1,7 @@
+current_phase: verify
+completed: [explore, proposal, spec, clarify, design, blast-radius, tasks, apply, verify]
+open_questions:
+  - task 0.1 BLOCKER: PR 10 merged, rebase over PR 11 if merged
+  - PR2 (flip claude) needs a real Claude Code session; archive only after PR2
+updated: 2026-09-26
+status: active

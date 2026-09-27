@@ -70,10 +70,10 @@ function removeGenerated(p) {
   fs.rmSync(p, { recursive: true, force: true });
 }
 
+// Throws so the generator is testable in-process; the require.main block at the bottom prints
+// the `generate: ERROR:` line, cleans BUILD and exits 1.
 function fail(msg) {
-  console.error(`generate: ERROR: ${msg}`);
-  try { if (isRemovable(BUILD)) fs.rmSync(BUILD, { recursive: true, force: true }); } catch (e) { /* best effort */ }
-  process.exit(1);
+  throw new Error(msg);
 }
 
 let created = [];
@@ -179,9 +179,18 @@ const COMMAND_FORMATS = {
   },
 };
 
-function validateRegistry() {
-  if (!REGISTRY || typeof REGISTRY !== 'object') fail('manifest.registry is missing');
-  for (const [id, r] of Object.entries(REGISTRY)) {
+const DOC_MODES = ['inline', 'side-files'];
+
+function validateRegistry(registry = REGISTRY) {
+  if (!registry || typeof registry !== 'object') fail('manifest.registry is missing');
+  // flags first, so a bad value is reported on its own row before any cross-agent check
+  for (const [id, r] of Object.entries(registry)) {
+    if (r.emit && r.emit.floor) continue;
+    if (r.persistence_docs !== undefined && !DOC_MODES.includes(r.persistence_docs)) fail(`registry.${id}.persistence_docs must be inline|side-files`);
+    if (r.persistence_docs === 'side-files' && !r.persistenceDocsVerified)
+      fail(`registry.${id}.persistenceDocsVerified is required for persistence_docs side-files (record the real session that read persistence/sqlite.md)`);
+  }
+  for (const [id, r] of Object.entries(registry)) {
     for (const k of ['displayName', 'status', 'invoke', 'args', 'emit', 'install'])
       if (r[k] === undefined) fail(`registry.${id} is missing "${k}"`);
     if (!['verified', 'experimental'].includes(r.status)) fail(`registry.${id}.status must be verified|experimental`);
@@ -200,13 +209,13 @@ function validateRegistry() {
     if ((e.phases.as === 'skill' || e.commands.as === 'skill') && !r.install.project && !r.install.user)
       fail(`registry.${id} emits skills but declares no install target`);
     if (r.skillsRead !== undefined && !Array.isArray(r.skillsRead)) fail(`registry.${id}.skillsRead must be an array`);
-    if (r.neutralSkills) validateSkillsInstall(id, r);
+    if (r.neutralSkills) validateSkillsInstall(id, r, registry);
   }
 }
 
 // Skills are installed ONCE: an agent that reads the shared dir must install its skills
 // there at project scope; an agent that does not keeps them in a dir it does read.
-function validateSkillsInstall(id, r) {
+function validateSkillsInstall(id, r, registry = REGISTRY) {
   const shared = manifest.sharedSkillsDir;
   const n = manifest.neutralInvoke;
   if (!shared) fail('manifest.sharedSkillsDir is missing');
@@ -220,6 +229,25 @@ function validateSkillsInstall(id, r) {
   if (reads.includes(shared) && skills.to !== shared)
     fail(`registry.${id} reads ${shared} but installs its project skills to ${skills.to} (skills must be installed once, in the shared dir)`);
   if (!reads.includes(skills.to)) fail(`registry.${id} installs project skills to ${skills.to}, which it does not read`);
+  // one SKILL.md is installed per shared dir, so every agent writing it must agree on the layout
+  const mode = (a) => registry[a].persistence_docs || 'inline';
+  const group = Object.keys(registry).filter((a) => {
+    const m = registry[a].install && registry[a].install.project && registry[a].install.project.map;
+    return ((m || []).find((x) => x.from === 'skills') || {}).to === shared;
+  });
+  const other = group.find((a) => mode(a) !== mode(id));
+  if (other) fail(`registry.${id} (${mode(id)}) and registry.${other} (${mode(other)}) share ${shared} and must agree on persistence_docs`);
+}
+
+function loadCtx() {
+  const ctx = {
+    orchestrator: read(path.join(CORE, 'orchestrator.md')),
+    conventions: read(path.join(CORE, 'conventions.md')),
+    persistence: listFiles(path.join(CORE, 'persistence'), /\.md$/).map((f) => ({ name: f, text: read(path.join(CORE, 'persistence', f)) })),
+    skillsBlock: read(path.join(TEMPLATES, 'skills-block.md')),
+  };
+  if (!ctx.persistence.length) fail('no docs under core/persistence/');
+  return ctx;
 }
 
 function generate() {
@@ -241,15 +269,7 @@ function generate() {
       fail(`hooks/${h} is missing at repo root — restore it before generating adapters/claude (stop and report)`);
   }
 
-  const ctx = {
-    phaseFiles,
-    commandFiles,
-    orchestrator: read(path.join(CORE, 'orchestrator.md')),
-    conventions: read(path.join(CORE, 'conventions.md')),
-    persistence: listFiles(path.join(CORE, 'persistence'), /\.md$/).map((f) => read(path.join(CORE, 'persistence', f))),
-    skillsBlock: read(path.join(TEMPLATES, 'skills-block.md')),
-  };
-  if (!ctx.persistence.length) fail('no docs under core/persistence/');
+  const ctx = { ...loadCtx(), phaseFiles, commandFiles };
 
   removeGenerated(BUILD);
   removeGenerated(OLD);
@@ -279,15 +299,22 @@ function swapIn() {
 }
 
 // persistence docs are bundled dynamically: any file added to core/persistence/
-// ships in every workflow skill without touching this generator.
-function skillBody(id, { conventions, orchestrator, persistence }, neutral) {
-  return resolve(
+// ships with every workflow skill without touching this generator.
+// inline: every doc is in the body. side-files: interface and files stay in the body (the
+// routing every phase needs); the rest are returned in `side` for emitAgent to write beside SKILL.md.
+const ALWAYS_INLINE = new Set(['interface.md', 'files.md']);
+
+function skillBody(id, { conventions, orchestrator, persistence }, neutral, mode = 'inline') {
+  const inlineDocs = mode === 'side-files' ? persistence.filter((d) => ALWAYS_INLINE.has(d.name)) : persistence;
+  const side = mode === 'side-files' ? persistence.filter((d) => !ALWAYS_INLINE.has(d.name)) : [];
+  const body = resolve(
     [conventions.trim(), '\n\n---\n\n', orchestrator.trim(), '\n\n---\n\n',
-     ...persistence.map((doc) => doc.trim() + '\n\n---\n\n')].join('')
+     ...inlineDocs.map((d) => d.text.trim() + '\n\n---\n\n')].join('')
       .replace(/\n---\n\n$/, '\n'),
     id,
     neutral
   );
+  return { body, side: side.map((d) => ({ name: d.name, text: resolve(d.text.trim() + '\n', id, neutral) })) };
 }
 
 // One marked region per agent so several agents can share a context file (AGENTS.md)
@@ -311,10 +338,9 @@ function emitAgent(id, ctx) {
   };
   const neutral = Boolean(r.neutralSkills);
 
-  write(
-    path.join(out, e.workflowSkill, 'SKILL.md'),
-    skillDoc(manifest.skill.name, manifest.skill.description, skillBody(id, ctx, neutral))
-  );
+  const { body, side } = skillBody(id, ctx, neutral, r.persistence_docs || 'inline');
+  write(path.join(out, e.workflowSkill, 'SKILL.md'), skillDoc(manifest.skill.name, manifest.skill.description, body));
+  for (const d of side) write(path.join(out, e.workflowSkill, 'persistence', d.name), d.text);
   claimSkill(manifest.skill.name);
 
   for (const f of ctx.phaseFiles) {
@@ -481,5 +507,15 @@ function verify() {
   return files.length;
 }
 
-generate();
-for (const c of created.sort()) console.log(`  wrote adapters/${c}`);
+module.exports = { skillBody, validateRegistry, loadCtx };
+
+if (require.main === module) {
+  try {
+    generate();
+  } catch (err) {
+    console.error(`generate: ERROR: ${err.message}`);
+    try { if (isRemovable(BUILD)) fs.rmSync(BUILD, { recursive: true, force: true }); } catch (e) { /* best effort */ }
+    process.exit(1);
+  }
+  for (const c of created.sort()) console.log(`  wrote adapters/${c}`);
+}

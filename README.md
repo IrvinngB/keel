@@ -229,6 +229,11 @@ bin/sdd             ← CLI: build · install · status · next · doctor · gua
 hooks/              ← PreToolUse (Claude) + pre-commit (universal git guard)
 ```
 
+Each agent's `sdd-workflow` skill bundles `interface.md` and `files.md` and, by default,
+every other backend doc. A registry row can set `persistence_docs: side-files` to ship
+those as `persistence/<name>.md` beside `SKILL.md` instead; every agent is still `inline`,
+and none is flipped without a recorded session that reads the side file.
+
 **New tool?** Add one entry to the agent registry in `build/manifest.json`; `core/` never changes.
 
 ## Adding an agent

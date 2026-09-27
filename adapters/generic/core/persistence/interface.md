@@ -64,8 +64,13 @@ artifact_store: files+sqlite      # combination: write ALL, read in listed order
 artifact_store: none              # conversation-only, warn about loss
 ```
 
-Any backend name (or `+` combination) that has a doc in this folder is valid.
-`none` always valid.
+Any backend name (or `+` combination) that has a doc is valid. `none` always valid.
+
+`interface.md` and `files.md` are part of this workflow. Any other backend doc
+`<name>.md` is a section of this workflow, a file in the `persistence/` folder
+beside this skill's `SKILL.md`, or in `.sdd/core/persistence/` in generic installs.
+If it is in none of these places, tell the user to run `sdd install` and stop; do
+not guess the backend.
 
 ## Archiving
 

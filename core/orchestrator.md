@@ -52,9 +52,8 @@ need explicit human approval before `{{agent:sdd-steer}}` applies them).
 ## Persistence routing
 
 Phases speak only the abstract operations SAVE / LOAD / LIST defined in the
-persistence interface (bundled with this workflow — same document in plugin
-installs, `.sdd/core/persistence/` in generic installs), addressing artifacts by
-logical key only. `config` → `artifact_store` selects the backend doc (files, SQLite, any mapped
+persistence interface (see its Selection section for where each backend doc is
+found), addressing artifacts by logical key only. `config` → `artifact_store` selects the backend doc (files, SQLite, any mapped
 MCP memory server, or a `+` combination: write ALL, read in listed order). Adding a
 backend never changes a phase contract.
 

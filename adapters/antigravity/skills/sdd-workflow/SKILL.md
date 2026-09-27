@@ -187,9 +187,8 @@ need explicit human approval before phase `sdd-steer` applies them).
 ## Persistence routing
 
 Phases speak only the abstract operations SAVE / LOAD / LIST defined in the
-persistence interface (bundled with this workflow — same document in plugin
-installs, `.sdd/core/persistence/` in generic installs), addressing artifacts by
-logical key only. `config` → `artifact_store` selects the backend doc (files, SQLite, any mapped
+persistence interface (see its Selection section for where each backend doc is
+found), addressing artifacts by logical key only. `config` → `artifact_store` selects the backend doc (files, SQLite, any mapped
 MCP memory server, or a `+` combination: write ALL, read in listed order). Adding a
 backend never changes a phase contract.
 
@@ -337,8 +336,13 @@ artifact_store: files+sqlite      # combination: write ALL, read in listed order
 artifact_store: none              # conversation-only, warn about loss
 ```
 
-Any backend name (or `+` combination) that has a doc in this folder is valid.
-`none` always valid.
+Any backend name (or `+` combination) that has a doc is valid. `none` always valid.
+
+`interface.md` and `files.md` are part of this workflow. Any other backend doc
+`<name>.md` is a section of this workflow, a file in the `persistence/` folder
+beside this skill's `SKILL.md`, or in `.sdd/core/persistence/` in generic installs.
+If it is in none of these places, tell the user to run `sdd install` and stop; do
+not guess the backend.
 
 ## Archiving
 

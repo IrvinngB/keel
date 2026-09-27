@@ -14,9 +14,9 @@ layout and contract).
    location. The files backend also creates its empty `specs/` and
    `changes/archive/` layout (see its doc); other backends need no skeleton.
 4. Ask the user setup questions (one at a time): artifact store (default:
-   `files`; offer any backend doc from the bundled persistence folder — files,
-   SQLite, a mapped MCP memory server, or `+` combinations; point to
-   `template.md` for a custom backend), Strict TDD on/off
+   `files`; offer any backend doc found as the persistence interface's Selection
+   section describes — files, SQLite, a mapped MCP memory server, or `+`
+   combinations; point to `template.md` for a custom backend), Strict TDD on/off
    (default: ON if a test runner was verified), security_review on/off (default:
    OFF). Record the answers in `config`.
 5. With the store now chosen, SAVE `steering/product`, `steering/tech` and
