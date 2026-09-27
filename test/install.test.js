@@ -381,17 +381,20 @@ test('a codex project install lists copilot among the readers of the shared skil
   assert.match(r.out, /shared with [^)]*copilot/);
 });
 
-test('copilot warns about Keel-named skills in .github/skills and stays silent for other names', () => {
-  const { dir, env } = repo();
-  write(path.join(dir, '.github', 'skills', 'my-own-skill', 'SKILL.md'), '# mine\n');
-  const quiet = sdd(dir, env, 'install', 'copilot', '--project');
-  assert.equal(quiet.status, 0, quiet.out);
-  assert.doesNotMatch(quiet.out, /warning: GitHub Copilot also reads/);
-  write(path.join(dir, '.github', 'skills', 'sdd-workflow', 'SKILL.md'), '# x\n');
-  const loud = sdd(dir, env, 'install', 'copilot', '--project');
-  assert.match(loud.out, /warning: GitHub Copilot also reads \.github\/skills, which holds/);
-  assert.ok(fs.existsSync(path.join(dir, '.github', 'skills', 'sdd-workflow', 'SKILL.md')));
-});
+for (const readDir of ['.github/skills', '.claude/skills']) {
+  test(`copilot warns about Keel-named skills in ${readDir} and stays silent for other names`, () => {
+    const { dir, env } = repo();
+    const parts = readDir.split('/');
+    write(path.join(dir, ...parts, 'my-own-skill', 'SKILL.md'), '# mine\n');
+    const quiet = sdd(dir, env, 'install', 'copilot', '--project');
+    assert.equal(quiet.status, 0, quiet.out);
+    assert.doesNotMatch(quiet.out, /warning: GitHub Copilot also reads/);
+    write(path.join(dir, ...parts, 'sdd-workflow', 'SKILL.md'), '# x\n');
+    const loud = sdd(dir, env, 'install', 'copilot', '--project');
+    assert.ok(loud.out.includes(`warning: GitHub Copilot also reads ${readDir}, which holds`), loud.out);
+    assert.ok(fs.existsSync(path.join(dir, ...parts, 'sdd-workflow', 'SKILL.md')));
+  });
+}
 
 test('doctor sizes the id column to the longest registry id', () => {
   const { dir, env } = repo();
