@@ -258,10 +258,139 @@ test('antigravity --dry-run writes nothing and lists exactly the planned actions
     ...files.map((f) => `  would copy ${path.join(dir, '.agents', 'skills', f)}`),
     `antigravity (project): would install ${files.length} files → ${dir}`,
     'note: dry run — nothing was written.',
-    'notice: skills are installed once in .agents/skills (shared with opencode, codex, gemini, kimi). They are invocation-neutral; Antigravity-specific syntax lives only in its own context-file block or native files.',
+    'notice: skills are installed once in .agents/skills (shared with opencode, codex, gemini, kimi, copilot). They are invocation-neutral; Antigravity-specific syntax lives only in its own context-file block or native files.',
     `  would append the antigravity block to ${path.join(dir, 'AGENTS.md')}`,
     'Antigravity has no native commit hook — would install the universal git guard.',
   ]);
+});
+
+// ---- GitHub Copilot (experimental, skills-only, project scope only) ----
+
+const CP = REGISTRY.copilot;
+const cpLine = (out) => out.split('\n').find((l) => /^ {2}copilot\s/.test(l));
+const CP_UNVERIFIED = 'unverified: invoke, subagents, detect, userScope';
+
+test('copilot row is experimental, named GitHub Copilot, invoked as /sdd-spec, and cites its docs', () => {
+  assert.equal(CP && CP.status, 'experimental');
+  assert.equal(CP && CP.displayName, 'GitHub Copilot');
+  assert.equal(CP && CP.invoke.cmd.replace('{name}', 'spec'), '/sdd-spec');
+  assert.deepEqual(CP && CP.unverifiedFields, ['invoke', 'subagents', 'detect', 'userScope']);
+  assert.deepEqual(CP && CP.detect, []);
+  assert.deepEqual(CP && CP.projectMarkers, []);
+  for (const u of [
+    'https://docs.github.com/en/copilot/concepts/agents/about-agent-skills',
+    'https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills',
+    'https://code.visualstudio.com/docs/copilot/customization/agent-skills',
+    '2026-09-25',
+  ]) assert.ok(CP && CP.notes.includes(u), u);
+  assert.equal(CP && CP.install.user, undefined);
+  assert.equal(CP && CP.install.contextFile.user, undefined);
+  const { dir, env } = repo();
+  assert.doesNotMatch(sdd(dir, env, 'doctor').out, /Tested/);
+});
+
+test('copilot sits right after antigravity so existing repos keep their next-command', () => {
+  assert.equal(ids.indexOf('copilot'), ids.indexOf('antigravity') + 1);
+  const next = (order) => {
+    const { dir, env } = repo();
+    write(path.join(dir, 'keel', 'changes', 'demo', 'proposal.md'), '# Proposal\n');
+    for (const id of order) assert.equal(sdd(dir, env, 'install', id, '--project').status, 0, id);
+    return sdd(dir, env, 'next').out;
+  };
+  assert.match(next(['codex', 'copilot']), /run \$sdd-continue demo/);
+  assert.match(next(['copilot', 'codex']), /run \$sdd-continue demo/);
+  assert.match(next(['copilot']), /run \/sdd-continue demo/);
+});
+
+test('copilot --project writes only .agents/skills and one AGENTS.md block, installs the guard, and is idempotent', () => {
+  const { dir, env } = repo();
+  assert.equal(sdd(dir, env, 'install', 'copilot', '--project').status, 0);
+  assert.deepEqual(entries(dir), ['.agents', 'AGENTS.md']);
+  assert.equal(read(path.join(dir, 'AGENTS.md')).match(/<!-- keel:begin agent=copilot -->/g).length, 1);
+  assert.ok(fs.existsSync(path.join(dir, '.git', 'hooks', 'pre-commit')));
+  const before = snapshot(dir);
+  const again = sdd(dir, env, 'install', 'copilot', '--project');
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, /already up to date/);
+  assert.deepEqual(snapshot(dir), before);
+});
+
+test('copilot coexists with codex, kimi and antigravity blocks in either order', () => {
+  const others = ['codex', 'kimi', 'antigravity'];
+  const alone = (id) => {
+    const { dir, env } = repo();
+    assert.equal(sdd(dir, env, 'install', id, '--project').status, 0, id);
+    return blockOf(read(path.join(dir, 'AGENTS.md')), id);
+  };
+  const want = Object.fromEntries([...others, 'copilot'].map((id) => [id, alone(id)]));
+  for (const order of [[...others, 'copilot', 'copilot'], ['copilot', ...others, 'copilot']]) {
+    const { dir, env } = repo();
+    for (const id of order) assert.equal(sdd(dir, env, 'install', id, '--project').status, 0, id);
+    const text = read(path.join(dir, 'AGENTS.md'));
+    for (const id of [...others, 'copilot']) {
+      assert.ok(want[id], `${id} block exists`);
+      assert.equal(blockOf(text, id), want[id], `${id} block intact in order ${order}`);
+    }
+  }
+});
+
+test('copilot refuses a malformed marker and writes nothing', () => {
+  const { dir, env } = repo();
+  const broken = '# Rules\n<!-- keel:begin agent=codex -->\nno end marker\n';
+  write(path.join(dir, 'AGENTS.md'), broken);
+  const r = sdd(dir, env, 'install', 'copilot', '--project');
+  assert.notEqual(r.status, 0);
+  assert.match(r.out, /malformed keel block markers/);
+  assert.equal(read(path.join(dir, 'AGENTS.md')), broken);
+  assert.equal(fs.existsSync(path.join(dir, '.agents')), false);
+});
+
+test('copilot --user fails without writing anything', () => {
+  const { dir, env } = repo();
+  const before = fs.readdirSync(env.HOME).sort();
+  const r = sdd(dir, env, 'install', 'copilot', '--user');
+  assert.notEqual(r.status, 0);
+  assert.match(r.out, /copilot has no user install target/);
+  assert.deepEqual(fs.readdirSync(env.HOME).sort(), before);
+  assert.deepEqual(entries(dir), []);
+});
+
+test('copilot --dry-run writes nothing, guard included, and announces the guard', () => {
+  const { dir, env } = repo();
+  const r = sdd(dir, env, 'install', 'copilot', '--project', '--dry-run');
+  assert.equal(r.status, 0, r.out);
+  assert.deepEqual(entries(dir), []);
+  assert.equal(fs.existsSync(path.join(dir, '.git', 'hooks', 'pre-commit')), false);
+  assert.ok(r.out.includes('GitHub Copilot has no native commit hook — would install the universal git guard.'), r.out);
+});
+
+test('copilot prints its unverified fields on install and doctor, and doctor detects it by its block', () => {
+  const { dir, env } = repo();
+  assert.match(cpLine(sdd(dir, env, 'doctor').out) || '', /copilot\s+experimental\s+tool n\/a · project —/);
+  const inst = sdd(dir, env, 'install', 'copilot', '--project');
+  assert.ok(inst.out.includes(CP_UNVERIFIED), inst.out);
+  const doc = sdd(dir, env, 'doctor').out;
+  assert.ok(doc.includes(CP_UNVERIFIED), doc);
+  assert.match(cpLine(doc) || '', /tool n\/a · project installed · skills in \.agents\/skills · AGENTS\.md: block present/);
+});
+
+test('a codex project install lists copilot among the readers of the shared skills dir', () => {
+  const { dir, env } = repo();
+  const r = sdd(dir, env, 'install', 'codex', '--project');
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /shared with [^)]*copilot/);
+});
+
+test('copilot warns about Keel-named skills in .github/skills and stays silent for other names', () => {
+  const { dir, env } = repo();
+  write(path.join(dir, '.github', 'skills', 'my-own-skill', 'SKILL.md'), '# mine\n');
+  const quiet = sdd(dir, env, 'install', 'copilot', '--project');
+  assert.equal(quiet.status, 0, quiet.out);
+  assert.doesNotMatch(quiet.out, /warning: GitHub Copilot also reads/);
+  write(path.join(dir, '.github', 'skills', 'sdd-workflow', 'SKILL.md'), '# x\n');
+  const loud = sdd(dir, env, 'install', 'copilot', '--project');
+  assert.match(loud.out, /warning: GitHub Copilot also reads \.github\/skills, which holds/);
+  assert.ok(fs.existsSync(path.join(dir, '.github', 'skills', 'sdd-workflow', 'SKILL.md')));
 });
 
 test('doctor sizes the id column to the longest registry id', () => {
