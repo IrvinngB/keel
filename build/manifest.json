@@ -443,6 +443,65 @@
         }
       }
     },
+    "copilot": {
+      "displayName": "GitHub Copilot",
+      "status": "experimental",
+      "unverifiedFields": [
+        "invoke",
+        "subagents",
+        "detect",
+        "userScope"
+      ],
+      "notes": "Docs checked 2026-09-25 (https://docs.github.com/en/copilot/concepts/agents/about-agent-skills, https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills, https://code.visualstudio.com/docs/copilot/customization/agent-skills): skills in .github/skills, .claude/skills, .agents/skills; context from AGENTS.md. userScope is not emitted: ~/.agents/skills is shared and duplicate handling is undocumented. Not Tested. Project skills installed once in .agents/skills.",
+      "detect": [],
+      "projectMarkers": [],
+      "invoke": {
+        "cmd": "/sdd-{name}",
+        "agent": "sdd-phase-{short}",
+        "skill": "{name}"
+      },
+      "neutralSkills": true,
+      "skillsRead": [
+        ".github/skills",
+        ".claude/skills",
+        ".agents/skills"
+      ],
+      "args": "the user's arguments",
+      "hooks": false,
+      "emit": {
+        "workflowSkill": "skills/sdd-workflow",
+        "phases": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-phase-{short}"
+        },
+        "commands": {
+          "as": "skill",
+          "dir": "skills",
+          "name": "sdd-{name}"
+        },
+        "contextFile": {
+          "name": "AGENTS.md",
+          "block": "skills",
+          "blockFile": "AGENTS.block.md"
+        }
+      },
+      "install": {
+        "method": "copy",
+        "project": {
+          "root": ".",
+          "map": [
+            {
+              "from": "skills",
+              "to": ".agents/skills"
+            }
+          ]
+        },
+        "contextFile": {
+          "project": "AGENTS.md"
+        }
+      }
+    },
     "generic": {
       "displayName": "Generic (any AGENTS.md agent)",
       "status": "verified",
