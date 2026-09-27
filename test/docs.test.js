@@ -94,3 +94,35 @@ test('CHANGELOG Unreleased records the foreign-file collision warnings', () => {
   assert.match(unreleased, /same name as a Keel definition/);
   assert.doesNotMatch(unreleased, /earlier install/i);
 });
+
+// ---- GitHub Copilot is documented as Experimental, never Tested ----
+
+const VOSEO = /\b(tenés|podés|querés|sabés|usá|mirá|eliminá|borrá|instalá|ejecutá|revisá)\b/;
+
+for (const f of ['README.md', 'docs/es/README.md']) {
+  test(`${f} lists GitHub Copilot as Experimental and never Tested`, () => {
+    const row = read(f).split('\n').find((l) => /^\| GitHub Copilot /.test(l)) || '';
+    assert.match(row, /Experimental/);
+    assert.doesNotMatch(row, /Tested|Probado/);
+    assert.match(read(f), /sdd install copilot --project/);
+    if (f.includes('/es/')) assert.doesNotMatch(read(f), VOSEO);
+  });
+}
+
+for (const f of ['docs/install.md', 'docs/es/instalacion.md']) {
+  test(`${f} documents GitHub Copilot as Experimental, project scope only`, () => {
+    const body = section(read(f), 'GitHub Copilot');
+    assert.match(body, /Experimental/);
+    assert.doesNotMatch(body, /\bTested\b|\bProbado\b/);
+    assert.match(body, /\.agents\/skills/);
+    assert.match(body, /2026-09-25/);
+    assert.match(body, /https:\/\/docs\.github\.com\/en\/copilot\/concepts\/agents\/about-agent-skills/);
+    assert.match(body, /https:\/\/docs\.github\.com\/en\/copilot\/how-tos\/copilot-cli\/customize-copilot\/add-skills/);
+    assert.match(body, /https:\/\/code\.visualstudio\.com\/docs\/copilot\/customization\/agent-skills/);
+    if (f.includes('/es/')) assert.doesNotMatch(read(f), VOSEO);
+  });
+}
+
+test('CHANGELOG Unreleased records GitHub Copilot', () => {
+  assert.match(read('CHANGELOG.md').split(/^## 0\./m)[0], /GitHub Copilot/);
+});

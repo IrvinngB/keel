@@ -45,7 +45,7 @@ Pipeline: explore -> proposal -> spec -> clarify -> design -> blast-radius -> ta
 - opencode: Tested (real headless session, opencode 1.18.18, 2026-09-23). This is the ONLY
   tested agent.
 - Claude Code, Generic: Verified against docs only.
-- Codex CLI, Gemini CLI, Kimi: Experimental (docs or inferred). Antigravity: Experimental (docs only).
+- Codex CLI, Gemini CLI, Kimi: Experimental (docs or inferred). Antigravity, GitHub Copilot: Experimental (docs only).
 - Promotion to Tested comes from agent support reports (issues).
 
 ## Current specs

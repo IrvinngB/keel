@@ -35,9 +35,36 @@ Historia: una prueba headless durante la 0.3.0 no encontró skills colocados en
 proyecto funciona. Por qué falló la prueba de la 0.3.0 es una hipótesis sin comprobar (una
 ubicación de skills a nivel de usuario); no se ha reproducido ni confirmado.
 
+## GitHub Copilot
+
+GitHub Copilot es Experimental: Keel escribió la entrada del registry a partir de la
+documentación oficial (revisada el 2026-09-25) y no la ha ejercitado en una sesión real de
+VS Code ni de Copilot CLI. Keel instala solo skills y un bloque en `AGENTS.md`; no escribe
+comandos, agentes, workflows ni hooks.
+
+- Solo alcance de proyecto (`--project`): skills en `.agents/skills` (compartido con los demás
+  agentes) y un bloque `copilot` en `AGENTS.md`. `sdd install copilot --user` falla con
+  "copilot has no user install target" y no escribe nada: `~/.agents/skills` es compartido y
+  la documentación no indica cómo trata Copilot los duplicados.
+- Copilot lee skills desde `.github/skills`, `.claude/skills` y `.agents/skills`. Keel
+  escribe solo `.agents/skills`; `sdd install` avisa cuando un skill con nombre de Keel
+  también está en alguno de los otros dos, y nunca modifica tus archivos. Los demás nombres
+  se ignoran.
+- No hay detección: `sdd doctor` muestra `tool n/a` y reporta Copilot como instalado cuando
+  el bloque `copilot` está en `AGENTS.md`.
+- Documentación: https://docs.github.com/en/copilot/concepts/agents/about-agent-skills,
+  https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills y
+  https://code.visualstudio.com/docs/copilot/customization/agent-skills (revisadas el
+  2026-09-25).
+
+Sin verificar: la invocación (`/sdd-new`), el soporte de subagentes, la detección y el
+alcance de usuario. Tampoco se sabe si Copilot elimina duplicados entre los tres
+directorios de lectura. Solo un cambio posterior que documente una sesión real en VS Code
+y en Copilot CLI podrá reducir esa lista o promover Copilot más allá de Experimental.
+
 ## Los skills se instalan una sola vez
 
-Codex, opencode, Gemini, Kimi y Antigravity leen todos `.agents/skills`, así que, a nivel de proyecto,
+Codex, opencode, Gemini, Kimi, Antigravity y GitHub Copilot leen todos `.agents/skills`, así que, a nivel de proyecto,
 cada uno instala sus skills ahí y en ningún otro lugar. Los cuerpos de los skills son
 neutrales respecto a la invocación para todos los agentes: dicen "fase `sdd-apply`" y
 "comando `continue`", nunca `$sdd-continue`, `/sdd:continue` ni `/skill:sdd-continue`,
@@ -59,7 +86,7 @@ está sin verificar, igual que las rutas de `opencode.json` y los directorios en
 ## Bloques de contexto por agente
 
 Cada agente es dueño de una región marcada dentro del archivo de contexto
-(`<!-- keel:begin agent=<id> -->` … `<!-- keel:end agent=<id> -->`). Codex, Kimi y Antigravity pueden
+(`<!-- keel:begin agent=<id> -->` … `<!-- keel:end agent=<id> -->`). Codex, Kimi, Antigravity y GitHub Copilot pueden
 compartir un mismo `AGENTS.md`; volver a ejecutar `sdd install` reemplaza solo la región
 de ese agente, nunca toca tu contenido fuera de los marcadores y conserva los finales de
 línea que ya tenía el archivo. Si los marcadores están mal formados (un begin sin end, un

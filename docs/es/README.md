@@ -109,6 +109,7 @@ sdd install codex --project                  # .agents/skills + bloque en AGENTS
 sdd install gemini --project                 # .agents/skills + .gemini/commands + bloque en GEMINI.md
 sdd install kimi --project                   # .agents/skills + bloque en AGENTS.md   (experimental)
 sdd install antigravity --project            # .agents/skills + bloque en AGENTS.md   (experimental)
+sdd install copilot --project                # .agents/skills + bloque en AGENTS.md   (experimental)
 sdd install generic --project                # cualquier otro agente que respete AGENTS.md: .sdd/core/
                                              # + AGENTS.md (--context-file=GEMINI.md para un 2.º archivo)
 sdd install claude                           # imprime los comandos /plugin de arriba
@@ -116,7 +117,8 @@ sdd install claude                           # imprime los comandos /plugin de a
 
 Usa `--user` en lugar de `--project` para una instalación global (Gemini y Kimi imprimen
 el bloque para que lo pegues en vez de escribirlo: no hay una ruta de contexto a nivel de
-usuario verificada; Antigravity, en cambio, escribe `~/.gemini/AGENTS.md` a nivel de usuario, sin comprobar).
+usuario verificada; Antigravity, en cambio, escribe `~/.gemini/AGENTS.md` a nivel de usuario, sin comprobar). GitHub Copilot no tiene instalación con `--user`: es
+solo de alcance de proyecto.
 
 ### Agentes soportados
 
@@ -128,6 +130,7 @@ usuario verificada; Antigravity, en cambio, escribe `~/.gemini/AGENTS.md` a nive
 | Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
 | Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Experimental (5) |
+| GitHub Copilot | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (6) | Experimental (6) |
 | Generic | — | leer el archivo de la fase | single-phase | `AGENTS.md` | Verified |
 
 **Tested** significa que una sesión headless real de ese agente cargó los skills
@@ -143,6 +146,9 @@ favor de Antigravity; Google rechazó la ejecución headless, así que no se pud
 (5) Antigravity (`agy`) se basa en su documentación (revisada el 2026-09-24) y no se
 ejercitó en una sesión real; sus directorios de detección, la ruta de skills de usuario,
 el archivo de contexto de usuario y la invocación no están verificados.
+(6) GitHub Copilot se basa en su documentación (revisada el 2026-09-25) y no se ejercitó en
+una sesión real de VS Code ni de Copilot CLI; su invocación, los subagentes y la detección
+no están verificados.
 
 `sdd install` y `sdd doctor` imprimen los campos `unverified` y las notas de cada agente.
 Gemini CLI lee `GEMINI.md`, no `AGENTS.md`, a menos que lo agregues en
