@@ -696,6 +696,7 @@ function main() {
           ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — ${bad.includes('openspec') ? 'the openspec backend is now called files' : 'map your memory server with the mcp-generic backend, see core/persistence/template.md'}`
           : `  artifact_store       ${store}`);
         if (!bad.length) for (const n of store.split('+')) say(`  round-trip ${n.padEnd(11)}${probeBackend(n)}`);
+        if (!bad.length) for (const w of backendDocWarnings(store)) say(w);
       }
       if (store && !store.split('+').includes('files')) {
         say(`  store checks         skipped — artifact_store is ${store}; only the files backend is validated`);
@@ -742,6 +743,41 @@ function main() {
     default:
       die(`unknown command "${cmd}" — sdd help`);
   }
+}
+
+// Warnings for backend docs the installed sdd-workflow skill cannot reach. A doc counts as
+// inline when its first heading (from the core doc) is in SKILL.md, otherwise it must be the
+// side file persistence/<name>.md. Copy-method agents only: plugin (claude) and generic install
+// no skills folder doctor can locate. One check per skills folder, since agents share them.
+function backendDocWarnings(store) {
+  const core = path.join(__dirname, '..', 'core', 'persistence');
+  const heads = new Map();
+  for (const n of store.split('+')) {
+    if (n === 'files' || n === 'none') continue;
+    try { heads.set(n, fs.readFileSync(path.join(core, `${n}.md`), 'utf8').split(/\r?\n/).find((l) => l.startsWith('# '))); } catch (e) { /* no core doc */ }
+  }
+  const dirs = new Map();
+  for (const id of AGENT_IDS) {
+    const r = REGISTRY[id];
+    if (r.install.method !== 'copy') continue;
+    for (const scope of ['project', 'user']) {
+      const t = r.install[scope];
+      const row = t && (t.map || []).find((m) => m.from === 'skills');
+      if (!row || (scope === 'user' && !HOME)) continue;
+      const dir = scope === 'user' ? path.join(expand(t.root), row.to) : path.join(t.root, row.to);
+      dirs.set(dir, [...(dirs.get(dir) || []), id]);
+    }
+  }
+  const out = [];
+  for (const [dir, agents] of dirs) {
+    const skill = path.join(dir, MANIFEST.skill.name);
+    let text;
+    try { text = fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'); } catch (e) { continue; }
+    for (const [n, head] of heads)
+      if (head && !text.includes(head) && !fs.existsSync(path.join(skill, 'persistence', `${n}.md`)))
+        out.push(`  backend doc          warning: no ${n} doc in ${path.join(dir, MANIFEST.skill.name).split(path.sep).join('/')} — run sdd install ${agents[0]} (${agents.join(', ')})`);
+  }
+  return out;
 }
 
 function probeBackend(name) {
