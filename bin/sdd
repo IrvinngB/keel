@@ -214,6 +214,121 @@ function activeChanges() {
     .map((d) => d.name);
 }
 
+// --- Store validation (read-only; used by `sdd doctor`) ---
+const PIPELINE = ['explore', 'proposal', 'spec', 'clarify', 'design', 'blast-radius', 'tasks', 'apply', 'verify', 'archive'];
+// Phases whose artifact must exist once completed; spec, clarify and blast-radius are optional.
+const REQUIRED_ARTIFACT = {
+  explore: 'exploration.md', proposal: 'proposal.md', design: 'design.md', tasks: 'tasks.md',
+  apply: 'apply-progress.md', verify: 'verify-report.md', archive: 'archive-report.md',
+};
+const RESERVED_NAMES = ['config', 'steering', 'specs', 'lessons', 'init', 'caps', 'archive'];
+const REQUIRED_KEYS = ['current_phase', 'completed', 'status'];
+const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const ARCHIVE_DIR = /^(\d{4}-\d{2}-\d{2})-(.+)$/;
+
+// Same line rules as stateOf, plus what stateOf silently gets wrong: reasons and key counts.
+function readStateStrict(file) {
+  const res = { fields: {}, counts: {}, unreadable: null, skipped: {} };
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); } catch (e) { res.unreadable = `cannot read (${e.code || 'error'})`; return res; }
+  if (text.charCodeAt(0) === 0xFEFF) { res.unreadable = 'byte order mark'; return res; }
+  if (text.includes('\r')) { res.unreadable = 'CRLF line endings'; return res; }
+  for (const line of text.split('\n')) {
+    const m = line.match(/^([a-z_]+):\s*(.*)$/);
+    if (!m) continue;
+    res.fields[m[1]] = m[2].trim();
+    res.counts[m[1]] = (res.counts[m[1]] || 0) + 1;
+  }
+  for (const k of [...REQUIRED_KEYS, 'archived_on']) {
+    const v = res.fields[k];
+    if (v === undefined) continue;
+    if (/^["']/.test(v)) { res.unreadable = `${k} has a quoted value`; return res; }
+    if (/ #/.test(v)) { res.unreadable = `${k} has a trailing comment`; return res; }
+  }
+  const c = res.fields.completed;
+  if (c !== undefined && !/^\[.*\]$/.test(c)) res.skipped.completed = 'completed is empty or block-style, use [a, b]';
+  for (const k of [...REQUIRED_KEYS, 'archived_on'])
+    if (res.counts[k] === undefined && new RegExp(`^\\s+${k}:`, 'm').test(text)) res.skipped[k] = `${k} is indented, sdd cannot read it`;
+  return res;
+}
+
+// relPath may use either separator; returns a problem string, or null when the name is fine.
+function validateName(relPath) {
+  const name = relPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+  if (RESERVED_NAMES.includes(name)) return `name "${name}" is reserved`;
+  if (!KEBAB.test(name)) return `name "${name}" is not kebab-case`;
+  return null;
+}
+
+function checkState(dir, where, folderDate, out) {
+  const r = readStateStrict(path.join(dir, 'state.yaml'));
+  if (r.unreadable) { out.push(`state.yaml unreadable: ${r.unreadable}`); return; }
+  for (const reason of Object.values(r.skipped)) out.push(`state.yaml unreadable: ${reason}`);
+  const f = r.fields;
+  for (const k of REQUIRED_KEYS) if (f[k] === undefined && !r.skipped[k]) out.push(`invalid: missing ${k}`);
+  for (const k of [...REQUIRED_KEYS, 'archived_on']) if (r.counts[k] > 1) out.push(`invalid: duplicate key ${k}`);
+  if (f.status !== undefined && !['active', 'archived'].includes(f.status)) out.push(`invalid: status "${f.status}"`);
+  if (f.status === 'archived') {
+    if (f.archived_on === undefined) { if (!r.skipped.archived_on) out.push('invalid: missing archived_on'); }
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(f.archived_on)) out.push(`invalid: archived_on "${f.archived_on}" is not YYYY-MM-DD`);
+  }
+  const done = f.completed !== undefined && !r.skipped.completed
+    ? f.completed.slice(1, -1).split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const phases = [...(f.current_phase ? [f.current_phase] : []), ...done];
+  for (const p of [...new Set(phases)]) if (!PIPELINE.includes(p)) out.push(`invalid: unknown phase "${p}"`);
+  if (f.status === 'archived' && where === 'active') out.push('status archived but folder is under changes/');
+  if (f.status === 'active' && where === 'archive') out.push('status active but folder is under archive/');
+  if (where === 'archive' && f.status === 'archived' && /^\d{4}-\d{2}-\d{2}$/.test(f.archived_on || '') && f.archived_on !== folderDate)
+    out.push(`archived_on ${f.archived_on} differs from folder date ${folderDate}`);
+  for (const p of done) {
+    const file = REQUIRED_ARTIFACT[p];
+    if (file && !fs.existsSync(path.join(dir, file))) out.push(`completed "${p}" but ${file} is missing`);
+  }
+}
+
+// root is the artifacts directory (holds changes/). Returns [{ change, problem }], sorted; never writes.
+function validateStore(root) {
+  const base = path.join(root, 'changes');
+  const dirs = (d) => {
+    try { return fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name); }
+    catch (e) { return []; }
+  };
+  const findings = [];
+  const add = (change, problems) => problems.forEach((problem) => findings.push({ change, problem }));
+  const active = dirs(base).filter((n) => n !== 'archive');
+  for (const name of active) {
+    const probs = [];
+    const bad = validateName(name);
+    if (bad) probs.push(bad);
+    if (!fs.existsSync(path.join(base, name, 'state.yaml'))) probs.push('no state.yaml');
+    else checkState(path.join(base, name), 'active', null, probs);
+    add(name, probs);
+  }
+  for (const folder of dirs(path.join(base, 'archive'))) {
+    const probs = [];
+    const m = folder.match(ARCHIVE_DIR);
+    if (!m || !KEBAB.test(m[2])) probs.push('archive folder is not <YYYY-MM-DD>-<kebab-case>');
+    else {
+      const bad = validateName(m[2]);
+      if (bad) probs.push(bad);
+      if (active.includes(m[2])) add(m[2], [`exists as active and archived (${folder})`]);
+    }
+    const dir = path.join(base, 'archive', folder);
+    if (fs.existsSync(path.join(dir, 'state.yaml'))) checkState(dir, 'archive', m ? m[1] : null, probs);
+    add(folder, probs);
+  }
+  const key = (x) => `${x.change}\u0000${x.problem}`;
+  return findings.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}
+
+// The raw artifact_store value from keel/config.yaml, or null when there is no config or key.
+function configuredStore() {
+  try {
+    const m = fs.readFileSync(path.join(ARTIFACTS, 'config.yaml'), 'utf8').match(/^artifact_store:\s*["']?([^\s"'#]+)/m);
+    return m ? m[1] : null;
+  } catch (e) { return null; }
+}
+
 function progress(dir) {
   const done = PHASES.filter(([, f]) => fs.existsSync(path.join(dir, f))).map(([p]) => p);
   if (done.length === PHASES.length) {
@@ -571,20 +686,26 @@ function main() {
       if (legacyArtifactDir()) say(`  notice               ${LEGACY_HINT}`);
       else if (fs.existsSync('openspec')) say('  openspec/            not Keel\'s (OpenSpec uses it) — ignored');
       say(`  active changes       ${activeChanges().length}`);
-      try {
-        const cfg = fs.readFileSync(path.join(ARTIFACTS, 'config.yaml'), 'utf8');
-        const m = cfg.match(/^artifact_store:\s*["']?([^\s"'#]+)/m);
-        if (m) {
-          const dirs = [path.join(__dirname, '..', 'core', 'persistence'), path.join('.sdd', 'core', 'persistence')];
-          const known = (n) => ['none', 'files', 'sqlite', 'mcp-generic'].includes(n)
-            || dirs.some((d) => fs.existsSync(path.join(d, `${n}.md`)));
-          const bad = m[1].split('+').filter((n) => !known(n));
-          say(bad.length
-            ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — ${bad.includes('openspec') ? 'the openspec backend is now called files' : 'map your memory server with the mcp-generic backend, see core/persistence/template.md'}`
-            : `  artifact_store       ${m[1]}`);
-          if (!bad.length) for (const n of m[1].split('+')) say(`  round-trip ${n.padEnd(11)}${probeBackend(n)}`);
+      const store = configuredStore();
+      if (store) {
+        const dirs = [path.join(__dirname, '..', 'core', 'persistence'), path.join('.sdd', 'core', 'persistence')];
+        const known = (n) => ['none', 'files', 'sqlite', 'mcp-generic'].includes(n)
+          || dirs.some((d) => fs.existsSync(path.join(d, `${n}.md`)));
+        const bad = store.split('+').filter((n) => !known(n));
+        say(bad.length
+          ? `  artifact_store       unknown artifact_store value "${bad.join('+')}" — ${bad.includes('openspec') ? 'the openspec backend is now called files' : 'map your memory server with the mcp-generic backend, see core/persistence/template.md'}`
+          : `  artifact_store       ${store}`);
+        if (!bad.length) for (const n of store.split('+')) say(`  round-trip ${n.padEnd(11)}${probeBackend(n)}`);
+      }
+      if (store && !store.split('+').includes('files')) {
+        say(`  store checks         skipped — artifact_store is ${store}; only the files backend is validated`);
+      } else {
+        const found = validateStore(ARTIFACTS);
+        if (found.length) {
+          say(`  store checks         ${found.length} finding(s), read-only`);
+          for (const f of found) say(`    ${f.change}  ${f.problem}`);
         }
-      } catch (e) { /* no config yet */ }
+      }
       const hdir = hooksDir();
       const hook = hdir && path.join(hdir, 'pre-commit');
       const text = hook && fs.existsSync(hook) ? fs.readFileSync(hook, 'utf8') : '';
@@ -614,7 +735,7 @@ function main() {
   sdd status [change]                pipeline state of active changes (no tokens)
   sdd next [change]                  next phase + exact command for this repo
   sdd doctor                         agents (verified/experimental), keel/, backend
-                                     round-trip, guards
+                                     round-trip, store checks, guards
   sdd guard install|remove           universal git pre-commit guard`);
       return;
 
@@ -719,4 +840,5 @@ function runGuard(action) {
   hooksPathNotice();
 }
 
-main();
+if (require.main === module) main();
+else module.exports = { validateStore, validateName, readStateStrict };

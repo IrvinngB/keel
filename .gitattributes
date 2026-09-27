@@ -2,3 +2,5 @@
 bin/sdd text eol=lf
 hooks/** text eol=lf
 *.sh text eol=lf
+# sdd reads state.yaml line by line and treats CRLF as unreadable.
+keel/**/state.yaml text eol=lf

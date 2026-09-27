@@ -4,6 +4,10 @@
 
 ### Added
 
+- `sdd doctor` validates the files store read-only: a `store checks` row lists change folders
+  without `state.yaml`, unreadable or invalid state (CRLF, quoted values, unknown phases),
+  location and date mismatches, missing artifacts of completed phases and bad names. Exit
+  code unchanged; other backends print one skipped note.
 - Experimental GitHub Copilot agent: `sdd install copilot --project` writes skills to
   `.agents/skills` plus an `AGENTS.md` block. Project scope only (`--user` is refused).
   Its invocation, subagent support and detection are unverified; it was not run in a real
