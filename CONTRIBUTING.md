@@ -36,7 +36,7 @@ node bin/sdd build        # regenerate adapters/ from core/
 | A phase or command's behavior | `core/phases/`, `core/commands/` | `adapters/` |
 | Artifact layout, envelope, guards | `core/conventions.md` | `adapters/` |
 | Orchestrator routing | `core/orchestrator.md` | `adapters/` |
-| A persistence backend | `core/persistence/` (start from `template.md`) | — |
+| A persistence backend | `core/persistence/` (start from `template.md`); skill layout via `persistence_docs` in the registry row | — |
 | Support for a new agent | a row in `registry` in `build/manifest.json` | `core/` |
 | A new output file format | a formatter in `build/generate.js` | — |
 | CLI behavior | `bin/sdd` + a test in `test/` | — |
