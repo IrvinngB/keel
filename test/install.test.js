@@ -561,3 +561,57 @@ test('an opencode.json with a leading BOM is still key-checked', () => {
   assert.equal(r.status, 0, r.out);
   assert.match(r.out, /agent "sdd-apply" has the same name/);
 });
+
+// ---- doctor: the configured backend doc must be reachable from the installed skill ----
+
+const SQLITE_HEAD = '# Persistence backend: SQLite (local file)';
+const warnRe = /backend doc\s+warning: no sqlite doc in \.agents\/skills\/sdd-workflow — run sdd install /;
+
+function withStore(store, skillText, sideText) {
+  const { dir, env } = repo();
+  write(path.join(dir, 'keel', 'config.yaml'), `artifact_store: ${store}\n`);
+  if (skillText !== null) write(path.join(dir, '.agents', 'skills', 'sdd-workflow', 'SKILL.md'), skillText);
+  if (sideText !== undefined) write(path.join(dir, '.agents', 'skills', 'sdd-workflow', 'persistence', 'sqlite.md'), sideText);
+  return { dir, env };
+}
+
+test('doctor warns when the sqlite doc is neither inline nor beside the skill, and still exits 0', () => {
+  const { dir, env } = withStore('files+sqlite', '# stub skill\n');
+  const r = sdd(dir, env, 'doctor');
+  assert.equal(r.status, 0);
+  assert.match(r.out, warnRe);
+  assert.match(r.out, /commit guard/);
+  assert.match(r.out, /dialect in use/);
+});
+
+test('doctor stays silent when the doc is inline, and the output equals the side-file output', () => {
+  const inline = withStore('files+sqlite', `# stub\n\n${SQLITE_HEAD}\n`);
+  const side = withStore('files+sqlite', '# stub\n', `${SQLITE_HEAD}\n`);
+  const a = sdd(inline.dir, inline.env, 'doctor');
+  const b = sdd(side.dir, side.env, 'doctor');
+  assert.equal(a.status, 0);
+  assert.doesNotMatch(a.out, /backend doc/);
+  assert.doesNotMatch(b.out, /backend doc/);
+  const norm = (o, d) => o.split(d).join('<dir>');
+  assert.equal(norm(a.out, inline.dir), norm(b.out, side.dir));
+});
+
+test('doctor never checks files/none, claude or generic', () => {
+  for (const store of ['files', 'none']) {
+    const { dir, env } = withStore(store, '# stub skill\n');
+    assert.doesNotMatch(sdd(dir, env, 'doctor').out, /backend doc/);
+  }
+  const { dir, env } = withStore('sqlite', null);
+  write(path.join(dir, '.claude', 'skills', 'sdd-workflow', 'SKILL.md'), '# stub\n');
+  write(path.join(dir, '.sdd', 'core', 'orchestrator.md'), '# stub\n');
+  assert.doesNotMatch(sdd(dir, env, 'doctor').out, /backend doc/);
+  write(path.join(dir, '.agents', 'skills', 'sdd-workflow', 'SKILL.md'), '# stub\n');
+  const out = sdd(dir, env, 'doctor').out;
+  assert.match(out, warnRe);
+  assert.doesNotMatch(out, /\.claude\/skills\/sdd-workflow — run/);
+});
+
+test('doctor skips the backend doc check when artifact_store is unknown', () => {
+  const { dir, env } = withStore('nosuchstore', '# stub skill\n');
+  assert.doesNotMatch(sdd(dir, env, 'doctor').out, /backend doc/);
+});
