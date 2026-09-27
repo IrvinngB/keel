@@ -107,6 +107,7 @@ sdd install codex --project                  # .agents/skills + AGENTS.md block 
 sdd install gemini --project                 # .agents/skills + .gemini/commands + GEMINI.md block
 sdd install kimi --project                   # .agents/skills + AGENTS.md block   (experimental)
 sdd install antigravity --project            # .agents/skills + AGENTS.md block   (experimental)
+sdd install copilot --project                # .agents/skills + AGENTS.md block   (experimental)
 sdd install generic --project                # any other AGENTS.md-respecting agent: .sdd/core/
                                              # + AGENTS.md (--context-file=GEMINI.md for a 2nd file)
 sdd install claude                           # prints the /plugin commands above
@@ -114,7 +115,8 @@ sdd install claude                           # prints the /plugin commands above
 
 Add `--user` instead of `--project` for a global install (Gemini and Kimi print the
 block to paste instead of writing it: no verified user-level context path; Antigravity, by
-contrast, writes `~/.gemini/AGENTS.md` at user scope, unverified).
+contrast, writes `~/.gemini/AGENTS.md` at user scope, unverified). GitHub Copilot has no
+`--user` install: it is project scope only.
 
 ### Supported agents
 
@@ -126,6 +128,7 @@ contrast, writes `~/.gemini/AGENTS.md` at user scope, unverified).
 | Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
 | Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Experimental (5) |
+| GitHub Copilot | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (6) | Experimental (6) |
 | Generic | — | read the phase file | single-phase | `AGENTS.md` | Verified |
 
 **Tested** means a real headless session of that agent loaded the installed skills
@@ -140,6 +143,8 @@ Antigravity; the headless run was rejected by Google, so it could not be tested.
 (5) Antigravity (`agy`) comes from its docs (checked 2026-09-24) and was not exercised in
 a real session; its detection dirs, user skills path, user context file and invocation
 are unverified.
+(6) GitHub Copilot comes from its docs (checked 2026-09-25) and was not exercised in a
+real VS Code or Copilot CLI session; its invocation, subagents and detection are unverified.
 
 `sdd install` and `sdd doctor` print the per-agent `unverified` fields and notes.
 Gemini CLI reads `GEMINI.md`, not `AGENTS.md`, unless you list it in

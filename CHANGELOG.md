@@ -4,6 +4,10 @@
 
 ### Added
 
+- Experimental GitHub Copilot agent: `sdd install copilot --project` writes skills to
+  `.agents/skills` plus an `AGENTS.md` block. Project scope only (`--user` is refused).
+  Its invocation, subagent support and detection are unverified; it was not run in a real
+  VS Code or Copilot CLI session.
 - Install and `sdd doctor` warn about files with the same name as a Keel definition,
   possibly another tool's, using neutral wording and never changing your files: Keel names
   now come from each agent's adapter tree instead of the `sdd` prefix, `sdd install` lists

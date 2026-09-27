@@ -10,7 +10,7 @@ core/                 SOURCE. Tool-agnostic markdown contracts (edit here)
   phases/               16 contracts: sdd-*.md (pipeline + utilities) + stack-detector.md
   commands/             15 command bodies
   persistence/          interface.md, files.md, sqlite.md, mcp-generic.md, template.md
-adapters/             GENERATED per agent: antigravity, claude, codex, gemini, generic, kimi, opencode
+adapters/             GENERATED per agent: antigravity, claude, codex, copilot, gemini, generic, kimi, opencode
 build/                generate.js (generator), manifest.json (agent registry, version),
                       templates/skills-block.md
 bin/sdd               zero-dependency CLI: build, install, status, next, doctor, guard
