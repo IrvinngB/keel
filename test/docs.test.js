@@ -75,9 +75,11 @@ test('CHANGELOG records Antigravity under Unreleased and leaves the 0.3.0 entry 
 
 // ---- Collision warnings: docs advise --project, mark opencode UNVERIFIED and drop the old wording ----
 
+const VOSEO = /\b(vos|tenés|tené|podés|querés|sabés|usá|mirá|eliminá|borrá|instalá|ejecutá|revisá|hacé|creá|configurá|probá|verificá|seguí|elegí|decí|cambiá|agregá|abrí|corré|cloná|copiá|editá|guardá|confirmá|poné|vení|salí|andá|escribí|leé|asegurate)\b/i;
+
 for (const [f, heading, advice, unverified, voseo] of [
   ['docs/install.md', 'Skills are installed once', /another SDD toolkit/, /unverified/i, null],
-  ['docs/es/instalacion.md', 'Los skills se instalan una sola vez', /otro toolkit SDD/, /sin verificar/i, /\b(tenés|podés|querés|sabés|usá|mirá|eliminá|borrá|instalá)\b/],
+  ['docs/es/instalacion.md', 'Los skills se instalan una sola vez', /otro toolkit SDD/, /sin verificar/i, VOSEO],
 ]) {
   test(`${f} recommends --project when another SDD toolkit is global and marks opencode as unverified`, () => {
     const body = section(read(f), heading);
@@ -97,7 +99,9 @@ test('CHANGELOG Unreleased records the foreign-file collision warnings', () => {
 
 // ---- GitHub Copilot is documented as Experimental, never Tested ----
 
-const VOSEO = /\b(tenés|podés|querés|sabés|usá|mirá|eliminá|borrá|instalá|ejecutá|revisá)\b/;
+test('Spanish documentation stays in neutral tuteo rather than voseo', () => {
+  for (const [, es] of PAIRS) assert.doesNotMatch(read(es), VOSEO, es);
+});
 
 for (const f of ['README.md', 'docs/es/README.md']) {
   test(`${f} lists GitHub Copilot as Experimental and never Tested`, () => {
