@@ -37,6 +37,13 @@
   guide. A test fails when a translation drops a section or code block of its English
   source, or when a relative link breaks.
 
+### Fixed
+
+- `stateOf` and `activeChanges` no longer crash on a `state.yaml` with CRLF line endings, a
+  quoted value, or one that is unreadable or a directory: `stateOf` now tolerates CRLF and
+  strips surrounding quotes, and both functions return an empty result instead of throwing.
+  `sdd status`, `sdd next` and `sdd doctor` degrade instead of failing.
+
 ## 0.4.1 - 2026-09-24
 
 First release published to npm as `keel-sdd`: `npx keel-sdd install <agent> --project`

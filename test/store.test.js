@@ -186,3 +186,46 @@ test('a state.yaml that cannot be read is reported, not thrown', () => {
   const r = readStateStrict(path.join(dir, 'missing', 'state.yaml'));
   assert.match(r.unreadable, /^cannot read \(ENOENT\)/);
 });
+
+test('stateOf tolerates CRLF, strips quotes, and returns empty object on read errors', () => {
+  const { stateOf } = require('../bin/sdd');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'keel-stateof-'));
+
+  // CRLF state.yaml
+  const crlfDir = path.join(dir, 'crlf');
+  fs.mkdirSync(crlfDir, { recursive: true });
+  fs.writeFileSync(path.join(crlfDir, 'state.yaml'), 'status: active\r\ncurrent_phase: tasks\r\n');
+  assert.deepEqual(stateOf(crlfDir), { status: 'active', current_phase: 'tasks' });
+
+  // Quoted values
+  const quotedDir = path.join(dir, 'quoted');
+  fs.mkdirSync(quotedDir, { recursive: true });
+  fs.writeFileSync(path.join(quotedDir, 'state.yaml'), 'status: "archived"\ncurrent_phase: \'proposal\'\n');
+  assert.deepEqual(stateOf(quotedDir), { status: 'archived', current_phase: 'proposal' });
+
+  // Directory instead of file
+  const dirAsState = path.join(dir, 'dir-state');
+  fs.mkdirSync(path.join(dirAsState, 'state.yaml'), { recursive: true });
+  assert.deepEqual(stateOf(dirAsState), {});
+
+  // Missing file
+  const missingDir = path.join(dir, 'missing');
+  assert.deepEqual(stateOf(missingDir), {});
+});
+
+test('activeChanges safely handles unreadable state.yaml or directory state.yaml without crashing', () => {
+  const { activeChanges } = require('../bin/sdd');
+  const { dir, env: e } = repo();
+  write(path.join(dir, 'keel', 'config.yaml'), CFG);
+
+  // A change where state.yaml is a directory
+  const brokenChangeDir = path.join(dir, 'keel', 'changes', 'broken-change');
+  fs.mkdirSync(path.join(brokenChangeDir, 'state.yaml'), { recursive: true });
+
+  // Normal change
+  change(dir, 'valid-change', ok());
+
+  // Doctor runs activeChanges() internally without crashing
+  const r = sdd(dir, e, 'doctor');
+  assert.equal(r.status, 0, r.out);
+});
