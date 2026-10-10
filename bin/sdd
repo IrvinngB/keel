@@ -192,8 +192,7 @@ function stateOf(dir) {
   try {
     const text = fs.readFileSync(f, 'utf8');
     const out = {};
-    for (const rawLine of text.split(/\r?\n/)) {
-      const line = rawLine.trimEnd();
+    for (const line of text.split(/\r?\n/)) {
       const m = line.match(/^([a-z_]+):\s*(.*)$/);
       if (m) {
         let val = m[2].trim();
@@ -223,13 +222,7 @@ function activeChanges() {
     if (!fs.existsSync(base)) return [];
     return fs.readdirSync(base, { withFileTypes: true })
       .filter((d) => d.isDirectory() && d.name !== 'archive')
-      .filter((d) => {
-        try {
-          return stateOf(path.join(base, d.name)).status !== 'archived';
-        } catch (e) {
-          return true;
-        }
-      })
+      .filter((d) => stateOf(path.join(base, d.name)).status !== 'archived') // stateOf never throws
       .map((d) => d.name);
   } catch (e) {
     return [];
@@ -248,7 +241,8 @@ const REQUIRED_KEYS = ['current_phase', 'completed', 'status'];
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const ARCHIVE_DIR = /^(\d{4}-\d{2}-\d{2})-(.+)$/;
 
-// Same line rules as stateOf, plus what stateOf silently gets wrong: reasons and key counts.
+// Same line rules as stateOf once did, before it learned to tolerate CRLF and quotes: this
+// still flags those as unreadable, plus reports the reasons and key counts stateOf stays quiet about.
 function readStateStrict(file) {
   const res = { fields: {}, counts: {}, unreadable: null, skipped: {} };
   let text;
