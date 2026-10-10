@@ -189,13 +189,25 @@ function taskCounts(dir) {
 
 function stateOf(dir) {
   const f = path.join(dir, 'state.yaml');
-  if (!fs.existsSync(f)) return {};
-  const out = {};
-  for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
-    const m = line.match(/^([a-z_]+):\s*(.*)$/);
-    if (m) out[m[1]] = m[2].trim();
+  try {
+    const text = fs.readFileSync(f, 'utf8');
+    const out = {};
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trimEnd();
+      const m = line.match(/^([a-z_]+):\s*(.*)$/);
+      if (m) {
+        let val = m[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"') && val.length >= 2) ||
+            (val.startsWith("'") && val.endsWith("'") && val.length >= 2)) {
+          val = val.slice(1, -1);
+        }
+        out[m[1]] = val;
+      }
+    }
+    return out;
+  } catch (e) {
+    return {};
   }
-  return out;
 }
 
 // Keel before 0.4.0 wrote to openspec/. Its config names an artifact_store; OpenSpec's does not.
@@ -207,11 +219,21 @@ const LEGACY_HINT = 'openspec/ holds Keel artifacts from before 0.4.0 — move t
 
 function activeChanges() {
   const base = CHANGES;
-  if (!fs.existsSync(base)) return [];
-  return fs.readdirSync(base, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name !== 'archive')
-    .filter((d) => stateOf(path.join(base, d.name)).status !== 'archived')
-    .map((d) => d.name);
+  try {
+    if (!fs.existsSync(base)) return [];
+    return fs.readdirSync(base, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name !== 'archive')
+      .filter((d) => {
+        try {
+          return stateOf(path.join(base, d.name)).status !== 'archived';
+        } catch (e) {
+          return true;
+        }
+      })
+      .map((d) => d.name);
+  } catch (e) {
+    return [];
+  }
 }
 
 // --- Store validation (read-only; used by `sdd doctor`) ---
@@ -877,4 +899,4 @@ function runGuard(action) {
 }
 
 if (require.main === module) main();
-else module.exports = { validateStore, validateName, readStateStrict };
+else module.exports = { validateStore, validateName, readStateStrict, stateOf, activeChanges };
