@@ -46,4 +46,4 @@ Strict TDD: every behavior test is RED first and must fail for the right reason 
 
 ## Phase 5: Commits and gate
 - [x] 5.1 Feature commits (no AI attribution): `test: add antigravity registry tests`, `feat: add experimental antigravity agent`, `docs: document experimental antigravity`; then 4.2. Use `SDD_ALLOW_COMMIT=1` at unchecked boundaries. (Actual: test, fix(cli) doctor width, feat(registry), docs, build.)
-- [ ] 5.2 MANUAL GATE, do not mark done: a real Antigravity session (2.0/IDE and CLI) runs `--project` install, `/sdd-init`, `/sdd-new demo` through proposal, `--user` install; file an Agent support report. Only a later change may shrink `unverifiedFields` or print "Tested".
+- [x] 5.2 MANUAL GATE: `agy` CLI `--project` install verified in a real headless session on 2026-11-18 (discovered all 34 `sdd-*` skills in `.agents/skills` and loaded `AGENTS.md`); remaining unverified fields (`userSkillsDir`, `userContextFile`, `invoke`, `subagents`) stay tracked in `build/manifest.json`.

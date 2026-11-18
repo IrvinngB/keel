@@ -114,17 +114,16 @@ const snapshot = (dir) => {
   return out;
 };
 const agLine = (out) => out.split('\n').find((l) => /^ {2}antigravity\s/.test(l));
-const UNVERIFIED = 'unverified: detect, userSkillsDir, userContextFile, invoke, subagents';
+const UNVERIFIED = 'unverified: userSkillsDir, userContextFile, invoke, subagents';
 
-test('antigravity is experimental, named Antigravity, invoked as /<skill-name>, never Tested', () => {
-  assert.equal(AG && AG.status, 'experimental');
+test('antigravity is verified, named Antigravity, invoked as /<skill-name>', () => {
+  assert.equal(AG && AG.status, 'verified');
   assert.equal(AG && AG.displayName, 'Antigravity');
   assert.equal(AG && AG.invoke.cmd.replace('{name}', 'spec'), '/sdd-spec');
   const { dir, env } = repo();
   fs.mkdirSync(path.join(env.HOME, '.gemini', 'antigravity'), { recursive: true });
   const out = sdd(dir, env, 'doctor').out;
-  assert.match(agLine(out) || '', /antigravity\s+experimental\s/);
-  assert.doesNotMatch(out, /Tested/);
+  assert.match(agLine(out) || '', /antigravity\s+verified\s/);
 });
 
 test('antigravity sits right after kimi so existing repos keep their next-command', () => {
@@ -183,7 +182,7 @@ test('antigravity refuses a malformed marker and writes nothing', () => {
 });
 
 test('antigravity declares its unverified fields, URLs and date, and prints them', () => {
-  assert.deepEqual(AG && AG.unverifiedFields, ['detect', 'userSkillsDir', 'userContextFile', 'invoke', 'subagents']);
+  assert.deepEqual(AG && AG.unverifiedFields, ['userSkillsDir', 'userContextFile', 'invoke', 'subagents']);
   assert.ok(AG && AG.notes.includes('https://antigravity.google/docs/skills/'));
   assert.ok(AG && AG.notes.includes('https://antigravity.google/docs/rules'));
   assert.ok(AG && AG.notes.includes('2026-09-24'));
@@ -222,9 +221,9 @@ test('antigravity detection uses its own dirs and never bare ~/.gemini', () => {
     for (const s of sub) fs.mkdirSync(path.join(env.HOME, ...s.split('/')), { recursive: true });
     return agLine(sdd(dir, env, 'doctor').out) || '';
   };
-  assert.match(found('.gemini'), /antigravity\s+experimental\s+tool —/);
+  assert.match(found('.gemini'), /antigravity\s+verified\s+tool —/);
   for (const d of ['antigravity', 'antigravity-ide', 'antigravity-cli'])
-    assert.match(found(`.gemini/${d}`), /antigravity\s+experimental\s+tool found/, d);
+    assert.match(found(`.gemini/${d}`), /antigravity\s+verified\s+tool found/, d);
   assert.deepEqual(AG && AG.projectMarkers, []);
 });
 

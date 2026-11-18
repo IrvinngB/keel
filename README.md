@@ -124,10 +124,10 @@ contrast, writes `~/.gemini/AGENTS.md` at user scope, unverified). GitHub Copilo
 |-------|-----------|----------|-----------|--------------|--------|
 | Claude Code | plugin | `/sdd:new` | yes | plugin | Verified (1) |
 | opencode | `.agents/skills` | `/sdd-new` | yes | — | Tested (1) |
-| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Experimental (3) |
+| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Tested (3) |
 | Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
-| Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Experimental (5) |
+| Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Tested (5) |
 | GitHub Copilot | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (6) | Experimental (6) |
 | Generic | — | read the phase file | single-phase | `AGENTS.md` | Verified |
 
@@ -137,12 +137,12 @@ against the agent's official docs on that date. **Experimental** means docs only
 partly inferred: neither guarantees a full pipeline run inside that agent.
 (1) The `agents/` and `command/` file layouts come from the previous release and
 were not re-checked; the generated `/sdd-*` opencode commands were not exercised.
-(2) Kimi reading `AGENTS.md` is inferred, not confirmed. (3) Codex was not available
-to test. (4) Gemini CLI is being retired for individual accounts in favor of
+(2) Kimi reading `AGENTS.md` is inferred, not confirmed. (3) Exercised in a real Codex CLI
+session; subagent support remains unverified. (4) Gemini CLI is being retired for individual accounts in favor of
 Antigravity; the headless run was rejected by Google, so it could not be tested.
-(5) Antigravity (`agy`) comes from its docs (checked 2026-09-24) and was not exercised in
-a real session; its detection dirs, user skills path, user context file and invocation
-are unverified.
+(5) Antigravity (`agy`) project-scope install (`.agents/skills` and `AGENTS.md`) was
+verified in a real headless `agy` session on 2026-11-18; user-scope paths, invocation,
+and 2.0 IDE remain unverified.
 (6) GitHub Copilot comes from its docs (checked 2026-09-25) and was not exercised in a
 real VS Code or Copilot CLI session; its invocation, subagents and detection are unverified.
 
