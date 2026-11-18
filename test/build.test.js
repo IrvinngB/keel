@@ -124,3 +124,20 @@ test('sdd-compliance builds into adapters with disclaimers and non-CRITICAL seve
     assert.match(body, /no jurisdiction mode/i);
   }
 });
+
+test('help command builds into adapters with resolved per-agent commands', () => {
+  const dir = sandbox();
+  const r = build(dir);
+  assert.equal(r.status, 0, r.stderr);
+
+  const claudeHelp = fs.readFileSync(path.join(dir, 'adapters', 'claude', 'commands', 'help.md'), 'utf8');
+  const opencodeHelp = fs.readFileSync(path.join(dir, 'adapters', 'opencode', 'command', 'sdd-help.md'), 'utf8');
+  const codexHelp = fs.readFileSync(path.join(dir, 'adapters', 'codex', 'skills', 'sdd-help', 'SKILL.md'), 'utf8');
+  const agyHelp = fs.readFileSync(path.join(dir, 'adapters', 'antigravity', 'skills', 'sdd-help', 'SKILL.md'), 'utf8');
+
+  assert.match(claudeHelp, /\/sdd:new/);
+  assert.match(opencodeHelp, /\/sdd-new/);
+  assert.match(codexHelp, /command new/);
+  assert.match(agyHelp, /command new/);
+  assert.match(agyHelp, /sdd check/);
+});

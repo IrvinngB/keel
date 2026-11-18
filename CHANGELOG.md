@@ -4,6 +4,8 @@
 
 ### Added
 
+- `help` command (`{{cmd:help}}` — `/sdd:help`, `/sdd-help`, `$sdd-help`, `/skill:sdd-help`):
+  in-session reference explaining Keel's SDD pipeline, core/auxiliary commands, and `sdd` CLI.
 - `sdd drift [change] [--base=<ref>] [--strict]` and `sdd --version` (`-v`, `version`):
   deterministic diff check comparing `design.md` `## File Changes` against `git diff`, plus
   standard CLI version output from `build/manifest.json`.
