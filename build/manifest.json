@@ -763,6 +763,10 @@
     "verify": {
       "description": "Validate implementation against specs, design, and tasks with real test runs",
       "argumentHint": "[change-name]"
+    },
+    "help": {
+      "description": "Show Keel SDD pipeline overview, slash/skill commands, and terminal CLI reference",
+      "argumentHint": "[command-or-topic]"
     }
   }
 }
