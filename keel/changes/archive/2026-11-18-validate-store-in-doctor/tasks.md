@@ -39,8 +39,8 @@ Estimated changed lines: ~245 (bin/sdd ~100, test/store.test.js ~140, CHANGELOG 
 ## Phase 3: Verification
 - [x] 3.1 Diff review (e): `stateOf`, `activeChanges`, `status`, `next`, `probeBackend` unchanged.
 - [x] 3.2 (MH5) One healthy doctor run equals pre-change capture; doctor on temp copy of `keel/` shows zero `store checks` rows.
-- [ ] 3.3 CI green on Node 18 and 22 across ubuntu/macos/windows (export guard, CRLF).
+- [x] 3.3 CI green on Node 18 and 22 across ubuntu/macos/windows (export guard, CRLF).
 
 ## Phase 4: Docs and artifacts (commit `chore`)
 - [x] 4.1 `CHANGELOG.md`: Unreleased/Added entry; no docs edits, no adapters regeneration.
-- [ ] 4.2 Commit `keel/changes/validate-store-in-doctor/` artifacts.
+- [x] 4.2 Commit `keel/changes/validate-store-in-doctor/` artifacts.
