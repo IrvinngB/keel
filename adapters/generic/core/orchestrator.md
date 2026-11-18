@@ -13,7 +13,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ```
 
 Auxiliary anytime: phase `sdd-estimate` (after tasks), phase `sdd-drift` (before verify/archive),
-phase `sdd-security` (standalone or from verify), phase `sdd-steer` (after apply batches and
+phase `sdd-security` (standalone or from verify), phase `sdd-compliance` (standalone or from
+verify), phase `sdd-steer` (after apply batches and
 after archive), phase `sdd-postmortem` (after archive — its proposals to steering docs
 need explicit human approval before phase `sdd-steer` applies them).
 
@@ -24,8 +25,9 @@ need explicit human approval before phase `sdd-steer` applies them).
   phase `sdd-design`, phase `sdd-blast-radius`, phase `sdd-tasks`,
   phase `sdd-apply`,
   phase `sdd-verify`, phase `sdd-archive` (+ utilities
-  phase `sdd-drift`, phase `sdd-security`, phase `sdd-estimate`,
-  phase `sdd-steer`, phase `sdd-postmortem`, phase `stack-detector`).
+  phase `sdd-drift`, phase `sdd-security`, phase `sdd-compliance`,
+  phase `sdd-estimate`, phase `sdd-steer`, phase `sdd-postmortem`,
+  phase `stack-detector`).
 - LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
   with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload
