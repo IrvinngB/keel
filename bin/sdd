@@ -433,6 +433,154 @@ function checkChange(dir, name) {
   return issues;
 }
 
+function syncSpecFile(srcPath, dstPath) {
+  const src = fs.readFileSync(srcPath, 'utf8');
+  if (!fs.existsSync(dstPath) || !/^## (ADDED|MODIFIED|REMOVED) Requirements\b/m.test(src)) {
+    fs.mkdirSync(path.dirname(dstPath), { recursive: true });
+    fs.writeFileSync(dstPath, src);
+    return;
+  }
+  let dst = fs.readFileSync(dstPath, 'utf8');
+  const parseBlocks = (section) => {
+    const reqs = [...section.matchAll(/^### Requirement:\s*(.+)$/gm)];
+    return reqs.map((m, i) => ({
+      name: m[1].trim(),
+      block: section.slice(m.index, i + 1 < reqs.length ? reqs[i + 1].index : section.length).trimEnd(),
+    }));
+  };
+  const sectionOf = (heading) => {
+    const m = src.match(new RegExp(`^## ${heading} Requirements[^\\n]*\\n([\\s\\S]*?)(?=^## (?:ADDED|MODIFIED|REMOVED) Requirements|$(?![\\s\\S]))`, 'm'));
+    return m ? m[1] : '';
+  };
+  const replaceOrAppend = (name, block, appendOnly) => {
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^### Requirement:\\s*${esc}\\s*$[\\s\\S]*?(?=^### Requirement:|$(?![\\s\\S]))`, 'm');
+    if (re.test(dst)) {
+      dst = dst.replace(re, `${block}\n\n`);
+    } else if (appendOnly) {
+      dst = `${dst.trimEnd()}\n\n${block}\n`;
+    }
+  };
+  for (const { name, block } of parseBlocks(sectionOf('ADDED'))) {
+    replaceOrAppend(name, block.replace(/\n\(Previously:[^\n]*\)\n?/g, '\n'), true);
+  }
+  for (const { name, block } of parseBlocks(sectionOf('MODIFIED'))) {
+    replaceOrAppend(name, block.replace(/\n\(Previously:[^\n]*\)\n?/g, '\n'), false);
+  }
+  for (const { name } of parseBlocks(sectionOf('REMOVED'))) {
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^### Requirement:\\s*${esc}\\s*$[\\s\\S]*?(?=^### Requirement:|$(?![\\s\\S]))`, 'm');
+    dst = dst.replace(re, '');
+  }
+  fs.mkdirSync(path.dirname(dstPath), { recursive: true });
+  fs.writeFileSync(dstPath, `${dst.trimEnd()}\n`);
+}
+
+function runArchive(target) {
+  const changes = activeChanges();
+  if (!changes.length) die(`no active changes (${ARTIFACTS}/changes/)`);
+  const name = target || (changes.length === 1 ? changes[0] : die(`specify a change name (${changes.join(', ')})`));
+  const bad = validateName(name);
+  if (bad) die(bad);
+  if (!changes.includes(name)) die(`unknown active change "${name}"`);
+
+  const dir = path.join(CHANGES, name);
+  const storeProblems = validateStore(ARTIFACTS).filter((x) => x.change === name).map((x) => x.problem);
+  const gateProblems = checkChange(dir, name);
+  const verifyPath = path.join(dir, 'verify-report.md');
+  if (!fs.existsSync(verifyPath)) gateProblems.push('verify-report.md is missing');
+  else {
+    const v = fs.readFileSync(verifyPath, 'utf8');
+    if (/^## Verdict:\s*FAIL\b/m.test(v)) gateProblems.push('verify-report.md verdict is FAIL');
+    else if (!/^## Verdict:\s*PASS(?:\s+WITH\s+WARNINGS)?\b/m.test(v)) gateProblems.push('verify-report.md has no PASS verdict');
+  }
+  const t = taskCounts(dir);
+  if (t && t.pending > 0) gateProblems.push(`${t.pending} unchecked task(s) remain in tasks.md`);
+
+  const allProblems = [...storeProblems, ...gateProblems];
+  if (allProblems.length) {
+    for (const p of allProblems) console.error(`sdd archive: ${name}: ${p}`);
+    process.exit(1);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const archiveDir = path.join(CHANGES, 'archive', `${today}-${name}`);
+  if (fs.existsSync(archiveDir)) die(`archive target already exists: ${archiveDir}`);
+
+  const specFiles = [];
+  const specsRoot = path.join(dir, 'specs');
+  if (fs.existsSync(specsRoot)) {
+    for (const e of fs.readdirSync(specsRoot, { withFileTypes: true })) {
+      if (e.isDirectory() && fs.existsSync(path.join(specsRoot, e.name, 'spec.md'))) {
+        specFiles.push(e.name);
+      }
+    }
+  }
+
+  if (DRY) {
+    for (const cap of specFiles) say(`would sync specs/${cap}/spec.md → ${ARTIFACTS}/specs/${cap}/spec.md`);
+    say(`would write ${path.join(dir, 'archive-report.md')}`);
+    say(`would update ${path.join(dir, 'state.yaml')} (status: archived, archived_on: ${today})`);
+    say(`would move ${dir} → ${archiveDir}`);
+    return;
+  }
+
+  for (const cap of specFiles) {
+    syncSpecFile(path.join(specsRoot, cap, 'spec.md'), path.join(ARTIFACTS, 'specs', cap, 'spec.md'));
+  }
+
+  const reportPath = path.join(dir, 'archive-report.md');
+  if (!fs.existsSync(reportPath)) {
+    const doneCount = t ? `${t.done}/${t.done + t.pending}` : '0/0';
+    fs.writeFileSync(reportPath, `# Archive Report: ${name}\n- Verdict: PASS\n- Tasks: ${doneCount} complete\n- Capabilities synced: ${specFiles.length ? specFiles.join(', ') : 'none'}\n- Completed: ${today}\n`);
+  }
+
+  const st = stateOf(dir);
+  const completed = Array.isArray(st.completed) ? [...st.completed] : [];
+  if (!completed.includes('archive')) completed.push('archive');
+  fs.writeFileSync(
+    path.join(dir, 'state.yaml'),
+    `current_phase: archive\ncompleted: [${completed.join(', ')}]\nopen_questions: []\nupdated: ${today}\nstatus: archived\narchived_on: ${today}\n`
+  );
+
+  fs.mkdirSync(path.dirname(archiveDir), { recursive: true });
+  fs.renameSync(dir, archiveDir);
+  say(`archived ${name} → ${archiveDir}`);
+}
+
+function runCi(strictTasks) {
+  if (!fs.existsSync(ARTIFACTS)) { say(`sdd ci: no ${ARTIFACTS}/ directory — skipping.`); return; }
+  const storeIssues = validateStore(ARTIFACTS);
+  const changes = activeChanges();
+  let failed = false;
+
+  if (storeIssues.length) {
+    failed = true;
+    for (const f of storeIssues) say(`FAIL [store] ${f.change}: ${f.problem}`);
+  }
+
+  for (const c of changes) {
+    const dir = path.join(CHANGES, c);
+    const gateProblems = checkChange(dir, c);
+    const t = taskCounts(dir);
+    if (gateProblems.length) {
+      failed = true;
+      for (const p of gateProblems) say(`FAIL [gate] ${c}: ${p}`);
+    }
+    if (t && t.pending > 0) {
+      if (strictTasks) {
+        failed = true;
+        say(`FAIL [tasks] ${c}: ${t.pending} unchecked task(s)`);
+      } else {
+        say(`WARN [tasks] ${c}: ${t.pending} unchecked task(s)`);
+      }
+    }
+  }
+
+  if (failed) process.exit(1);
+  say(`sdd ci: PASS (${changes.length} active change(s) checked)`);
+}
+
 // The shared skills dir says nothing about WHICH agent was installed (skills are written once
 // for every reader), so "installed" means an agent-specific artifact: its own non-shared dirs
 // or its per-agent context-file block.
@@ -833,6 +981,12 @@ function main() {
       return;
     }
 
+    case 'archive':
+      return runArchive(pos[0]);
+
+    case 'ci':
+      return runCi(flags.has('--strict-tasks'));
+
     case undefined:
     case 'help':
       say(`Keel (sdd) — Spec-Driven Development for any coding agent
@@ -845,6 +999,8 @@ function main() {
   sdd status [change]                pipeline state of active changes (no tokens)
   sdd next [change]                  next phase + exact command for this repo
   sdd check [change]                 validate SDD gate invariants (exit 1 on fail)
+  sdd archive [change] [--dry-run]   sync specs and archive a verified change
+  sdd ci [--strict-tasks]            CI gate check (store + gates; --strict-tasks fails on [ ])
   sdd doctor                         agents (verified/experimental), keel/, backend
                                      round-trip, store checks, guards
   sdd guard install|remove           universal git pre-commit guard`);
