@@ -640,6 +640,15 @@
         "Bash"
       ]
     },
+    "sdd-compliance": {
+      "description": "Read-only baseline policy and privacy acknowledgment review (cookies, privacy policy, terms, user uploads, consent forms) of a change's artifacts and diff. Use standalone or from sdd-verify when compliance_review is on. Not legal advice.",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
     "sdd-estimate": {
       "description": "Estimate complexity, time and risk per task from an existing tasks artifact. Flags high-risk work (auth, payments, destructive migrations, public API changes). Use after sdd-tasks, before committing to a sprint or quoting work to a client.",
       "tools": [
@@ -742,6 +751,10 @@
     },
     "security": {
       "description": "Language-agnostic security review of a change's diff or a file range",
+      "argumentHint": "[change-name | commit-range | file-paths]"
+    },
+    "compliance": {
+      "description": "Read-only baseline policy and privacy acknowledgment review (not legal advice)",
       "argumentHint": "[change-name | commit-range | file-paths]"
     },
     "steer": {

@@ -34,6 +34,7 @@ LIST(prefix):       list the mapped directory for the prefix (find for spec keys
 | `<change>/apply-progress` | `keel/changes/<change>/apply-progress.md` |
 | `<change>/drift` | `keel/changes/<change>/drift-report.md` |
 | `<change>/security` | `keel/changes/<change>/security-report.md` (standalone, no change: report inline) |
+| `<change>/compliance` | `keel/changes/<change>/compliance-report.md` (standalone, no change: report inline) |
 | `<change>/verify-report` | `keel/changes/<change>/verify-report.md` |
 | `<change>/archive-report` | `keel/changes/<change>/archive-report.md` |
 

@@ -4,6 +4,11 @@
 
 ### Added
 
+- Read-only `sdd-compliance` review agent and `compliance` command (mirrors `sdd-security`,
+  off by default via `compliance_review: false` in `keel/config.yaml`): detects privacy,
+  cookie, terms, upload, and consent signals, checks only for acknowledgments (no
+  jurisdiction mode), opens and closes every report with a non-legal-advice disclaimer,
+  and uses `HIGH / MEDIUM / LOW / INFO` severities.
 - Mechanism to keep persistence docs out of the `sdd-workflow` skill: a registry row can set
   `persistence_docs: side-files`, which keeps `interface.md` and `files.md` in `SKILL.md` and
   writes the other docs as `persistence/<name>.md` beside it. `side-files` needs a recorded

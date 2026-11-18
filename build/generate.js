@@ -254,8 +254,10 @@ function generate() {
   validateRegistry();
   const phaseFiles = listFiles(path.join(CORE, 'phases'), /\.md$/);
   const commandFiles = listFiles(path.join(CORE, 'commands'), /\.md$/);
-  if (phaseFiles.length !== 16) fail(`expected 16 files in core/phases, found ${phaseFiles.length}`);
-  if (commandFiles.length !== 15) fail(`expected 15 files in core/commands, found ${commandFiles.length}`);
+  const expectedPhases = Object.keys(manifest.agents).length;
+  const expectedCommands = Object.keys(manifest.commands).length;
+  if (phaseFiles.length !== expectedPhases) fail(`expected ${expectedPhases} files in core/phases, found ${phaseFiles.length}`);
+  if (commandFiles.length !== expectedCommands) fail(`expected ${expectedCommands} files in core/commands, found ${commandFiles.length}`);
   for (const f of phaseFiles) {
     const name = f.replace(/\.md$/, '');
     if (!manifest.agents[name]) fail(`manifest.agents missing entry for phase "${name}"`);
@@ -421,7 +423,7 @@ Pipeline:
 
 - \`clarify\` is a mandatory gate between spec and design.
 - \`blast-radius\` maps consumers of changed code after design, before tasks.
-- Auxiliary phases: \`sdd-drift\`, \`sdd-security\`, \`sdd-estimate\`, \`sdd-steer\`,
+- Auxiliary phases: \`sdd-drift\`, \`sdd-security\`, \`sdd-compliance\`, \`sdd-estimate\`, \`sdd-steer\`,
   \`sdd-postmortem\` (after archive; proposals need human approval), \`stack-detector\`
   (see \`.sdd/core/phases/\`).
 - Never bypass the workload guard in \`<change>/tasks\` (chained PRs / size exception).
