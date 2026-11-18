@@ -17,3 +17,4 @@ verify inline.
 
 Next: command `archive` if clean, command `apply` again if FAIL. If
 `security_review: true` in `config` (or the user asks), also run command `security`.
+If `compliance_review: true` in `config` (or the user asks), also run command `compliance`.

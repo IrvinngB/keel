@@ -10,6 +10,7 @@ context: |
   A bug fix in bin/sdd needs a test that fails without it.
 strict_tdd: true
 security_review: false
+compliance_review: false
 testing:
   full: npm test
   focused: node --test test/<file>.test.js

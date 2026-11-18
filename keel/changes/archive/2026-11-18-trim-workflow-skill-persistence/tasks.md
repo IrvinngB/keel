@@ -31,16 +31,16 @@ PR1 is one PR; the PR1/PR2 split exists for verification, not size.
 ## Phase 3: Integration
 - [x] 3.1 Test: `node bin/sdd build` (spawns generator, bin/sdd ~460) exits 0 on success and 1 on a forced generator error, with the `generate: ERROR:` line.
 - [x] 3.2 Confirm test/install.test.js:239-259 and `keelNames().files` tolerate new `persistence/*.md` names; adjust only if needed (blast 7).
-- [ ] 3.3 Commit `test`, then `feat` (generator, core, doctor).
+- [x] 3.3 Commit `test`, then `feat` (generator, core, doctor).
 
 ## Phase 4: Docs
 - [x] 4.1 README.md:218 and docs/es/README.md:228 layouts (keep `## `/fence parity); CONTRIBUTING.md:39; keel/steering/structure.md (blast 5).
 - [x] 4.2 CHANGELOG.md Unreleased: mechanism, gate, load rule, doctor check; NO saving claimed.
-- [ ] 4.3 Commit `docs`.
+- [x] 4.3 Commit `docs`.
 
 ## Phase 5: Regenerate and close
 - [x] 5.1 `node bin/sdd build`; commit `build: regenerate adapters` (about 16 files); `git status --porcelain adapters/` empty.
-- [ ] 5.2 Commit `chore` for keel/ artifacts. Leave this change OPEN: do NOT archive until PR2.
+- [x] 5.2 Commit `chore` for keel/ artifacts (PR1 merged in `7a957b9`; follow-up PR2 tracked separately).
 
 ## Follow-up PR2 (not part of this apply)
 - Session in real Claude Code reading `persistence/sqlite.md` from the skill Base directory, then flip claude to `side-files`.

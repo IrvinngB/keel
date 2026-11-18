@@ -13,7 +13,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ```
 
 Auxiliary anytime: `{{agent:sdd-estimate}}` (after tasks), `{{agent:sdd-drift}}` (before verify/archive),
-`{{agent:sdd-security}}` (standalone or from verify), `{{agent:sdd-steer}}` (after apply batches and
+`{{agent:sdd-security}}` (standalone or from verify), `{{agent:sdd-compliance}}` (standalone or from
+verify), `{{agent:sdd-steer}}` (after apply batches and
 after archive), `{{agent:sdd-postmortem}}` (after archive — its proposals to steering docs
 need explicit human approval before `{{agent:sdd-steer}}` applies them).
 
@@ -24,8 +25,9 @@ need explicit human approval before `{{agent:sdd-steer}}` applies them).
   `{{agent:sdd-design}}`, `{{agent:sdd-blast-radius}}`, `{{agent:sdd-tasks}}`,
   `{{agent:sdd-apply}}`,
   `{{agent:sdd-verify}}`, `{{agent:sdd-archive}}` (+ utilities
-  `{{agent:sdd-drift}}`, `{{agent:sdd-security}}`, `{{agent:sdd-estimate}}`,
-  `{{agent:sdd-steer}}`, `{{agent:sdd-postmortem}}`, `{{agent:stack-detector}}`).
+  `{{agent:sdd-drift}}`, `{{agent:sdd-security}}`, `{{agent:sdd-compliance}}`,
+  `{{agent:sdd-estimate}}`, `{{agent:sdd-steer}}`, `{{agent:sdd-postmortem}}`,
+  `{{agent:stack-detector}}`).
 - LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
   with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload

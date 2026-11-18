@@ -19,7 +19,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ```
 
 Auxiliary anytime: `sdd-estimate` (after tasks), `sdd-drift` (before verify/archive),
-`sdd-security` (standalone or from verify), `sdd-steer` (after apply batches and
+`sdd-security` (standalone or from verify), `sdd-compliance` (standalone or from
+verify), `sdd-steer` (after apply batches and
 after archive), `sdd-postmortem` (after archive — its proposals to steering docs
 need explicit human approval before `sdd-steer` applies them).
 
@@ -30,8 +31,9 @@ need explicit human approval before `sdd-steer` applies them).
   `sdd-design`, `sdd-blast-radius`, `sdd-tasks`,
   `sdd-apply`,
   `sdd-verify`, `sdd-archive` (+ utilities
-  `sdd-drift`, `sdd-security`, `sdd-estimate`,
-  `sdd-steer`, `sdd-postmortem`, `stack-detector`).
+  `sdd-drift`, `sdd-security`, `sdd-compliance`,
+  `sdd-estimate`, `sdd-steer`, `sdd-postmortem`,
+  `stack-detector`).
 - LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
   with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload

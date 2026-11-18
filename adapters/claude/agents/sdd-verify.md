@@ -38,11 +38,15 @@ already exists — re-verification is normal). Return envelope: `status`,
    path traversal, unsafe deserialization) over the changed files; findings go into
    the report (or recommend the standalone `sdd-security` agent for a full OWASP
    pass).
-8. Observability check: compare `<change-name>/design`'s Observability section against the
+8. If `config` has `compliance_review: true`: run a baseline policy/compliance
+   acknowledgment check over the changed files (or recommend the standalone
+   `sdd-compliance` agent); findings use `HIGH/MEDIUM/LOW/INFO` (never `CRITICAL`)
+   and include the non-legal-advice disclaimer.
+9. Observability check: compare `<change-name>/design`'s Observability section against the
    changed code — new error paths or endpoints without the planned
    logging/metrics coverage → WARNING (missing section entirely in an old design →
    SUGGESTION).
-9. Write the report.
+10. Write the report.
 
 ## Report format
 

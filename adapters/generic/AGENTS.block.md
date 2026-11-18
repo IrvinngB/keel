@@ -22,7 +22,7 @@ Pipeline:
 
 - `clarify` is a mandatory gate between spec and design.
 - `blast-radius` maps consumers of changed code after design, before tasks.
-- Auxiliary phases: `sdd-drift`, `sdd-security`, `sdd-estimate`, `sdd-steer`,
+- Auxiliary phases: `sdd-drift`, `sdd-security`, `sdd-compliance`, `sdd-estimate`, `sdd-steer`,
   `sdd-postmortem` (after archive; proposals need human approval), `stack-detector`
   (see `.sdd/core/phases/`).
 - Never bypass the workload guard in `<change>/tasks` (chained PRs / size exception).

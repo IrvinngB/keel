@@ -106,3 +106,21 @@ test('sdd build exits 1 with the generate: ERROR line and cleans the build dir',
   assert.match(r.stderr, /generate: ERROR: hooks\/tasks-guard\.sh is missing/);
   assert.equal(fs.existsSync(path.join(dir, 'adapters.build')), false);
 });
+
+test('sdd-compliance builds into adapters with disclaimers and non-CRITICAL severities', () => {
+  const dir = sandbox();
+  const r = build(dir);
+  assert.equal(r.status, 0, r.stderr);
+
+  const claudeAgent = fs.readFileSync(path.join(dir, 'adapters', 'claude', 'agents', 'sdd-compliance.md'), 'utf8');
+  const claudeCmd = fs.readFileSync(path.join(dir, 'adapters', 'claude', 'commands', 'compliance.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(dir, 'adapters', 'codex', 'skills', 'sdd-phase-compliance', 'SKILL.md'), 'utf8');
+
+  assert.match(claudeCmd, /sdd-compliance/);
+  for (const body of [claudeAgent, skill]) {
+    assert.match(body, /not legal advice/i);
+    assert.match(body, /HIGH \/ MEDIUM \/ LOW \/ INFO/);
+    assert.match(body, /Never emit `CRITICAL`/);
+    assert.match(body, /no jurisdiction mode/i);
+  }
+});

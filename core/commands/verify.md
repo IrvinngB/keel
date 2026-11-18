@@ -13,3 +13,4 @@ verify inline.
 
 Next: `{{cmd:archive}}` if clean, `{{cmd:apply}}` again if FAIL. If
 `security_review: true` in `config` (or the user asks), also run `{{cmd:security}}`.
+If `compliance_review: true` in `config` (or the user asks), also run `{{cmd:compliance}}`.

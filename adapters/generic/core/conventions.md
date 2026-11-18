@@ -20,7 +20,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
   every must-handle line into work items.
 - Auxiliary (run anytime): phase `stack-detector` (inside init),
   phase `sdd-drift` (before verify/archive), phase `sdd-security` (inside verify or
-  standalone), phase `sdd-estimate` (after tasks), phase `sdd-steer` (after apply
+  standalone), phase `sdd-compliance` (inside verify or standalone),
+  phase `sdd-estimate` (after tasks), phase `sdd-steer` (after apply
   batches and after archive), phase `sdd-postmortem` (after archive — proposes
   steering updates, never auto-applies).
 
@@ -47,6 +48,7 @@ it lives (the default files backend maps keys to a `keel/` tree — see its doc)
 | `<change>/apply-progress` | sdd-apply — cumulative progress |
 | `<change>/drift` | sdd-drift |
 | `<change>/security` | sdd-security |
+| `<change>/compliance` | sdd-compliance |
 | `<change>/verify-report` | sdd-verify |
 | `<change>/archive-report` | sdd-archive |
 

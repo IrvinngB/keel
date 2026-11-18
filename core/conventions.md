@@ -20,7 +20,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
   every must-handle line into work items.
 - Auxiliary (run anytime): `{{agent:stack-detector}}` (inside init),
   `{{agent:sdd-drift}}` (before verify/archive), `{{agent:sdd-security}}` (inside verify or
-  standalone), `{{agent:sdd-estimate}}` (after tasks), `{{agent:sdd-steer}}` (after apply
+  standalone), `{{agent:sdd-compliance}}` (inside verify or standalone),
+  `{{agent:sdd-estimate}}` (after tasks), `{{agent:sdd-steer}}` (after apply
   batches and after archive), `{{agent:sdd-postmortem}}` (after archive — proposes
   steering updates, never auto-applies).
 
@@ -47,6 +48,7 @@ it lives (the default files backend maps keys to a `keel/` tree — see its doc)
 | `<change>/apply-progress` | sdd-apply — cumulative progress |
 | `<change>/drift` | sdd-drift |
 | `<change>/security` | sdd-security |
+| `<change>/compliance` | sdd-compliance |
 | `<change>/verify-report` | sdd-verify |
 | `<change>/archive-report` | sdd-archive |
 

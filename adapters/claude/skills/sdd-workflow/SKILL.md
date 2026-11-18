@@ -23,7 +23,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
   every must-handle line into work items.
 - Auxiliary (run anytime): `sdd:stack-detector` (inside init),
   `sdd:sdd-drift` (before verify/archive), `sdd:sdd-security` (inside verify or
-  standalone), `sdd:sdd-estimate` (after tasks), `sdd:sdd-steer` (after apply
+  standalone), `sdd:sdd-compliance` (inside verify or standalone),
+  `sdd:sdd-estimate` (after tasks), `sdd:sdd-steer` (after apply
   batches and after archive), `sdd:sdd-postmortem` (after archive — proposes
   steering updates, never auto-applies).
 
@@ -50,6 +51,7 @@ it lives (the default files backend maps keys to a `keel/` tree — see its doc)
 | `<change>/apply-progress` | sdd-apply — cumulative progress |
 | `<change>/drift` | sdd-drift |
 | `<change>/security` | sdd-security |
+| `<change>/compliance` | sdd-compliance |
 | `<change>/verify-report` | sdd-verify |
 | `<change>/archive-report` | sdd-archive |
 
@@ -148,7 +150,8 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 ```
 
 Auxiliary anytime: `sdd:sdd-estimate` (after tasks), `sdd:sdd-drift` (before verify/archive),
-`sdd:sdd-security` (standalone or from verify), `sdd:sdd-steer` (after apply batches and
+`sdd:sdd-security` (standalone or from verify), `sdd:sdd-compliance` (standalone or from
+verify), `sdd:sdd-steer` (after apply batches and
 after archive), `sdd:sdd-postmortem` (after archive — its proposals to steering docs
 need explicit human approval before `sdd:sdd-steer` applies them).
 
@@ -159,8 +162,9 @@ need explicit human approval before `sdd:sdd-steer` applies them).
   `sdd:sdd-design`, `sdd:sdd-blast-radius`, `sdd:sdd-tasks`,
   `sdd:sdd-apply`,
   `sdd:sdd-verify`, `sdd:sdd-archive` (+ utilities
-  `sdd:sdd-drift`, `sdd:sdd-security`, `sdd:sdd-estimate`,
-  `sdd:sdd-steer`, `sdd:sdd-postmortem`, `sdd:stack-detector`).
+  `sdd:sdd-drift`, `sdd:sdd-security`, `sdd:sdd-compliance`,
+  `sdd:sdd-estimate`, `sdd:sdd-steer`, `sdd:sdd-postmortem`,
+  `sdd:stack-detector`).
 - LOAD and SAVE `<change>/state` (you are its ONLY writer; on archive you SAVE it
   with `status: archived` and `archived_on`).
 - Ask the user exactly one question at a time (clarify BLOCKERs, workload
@@ -245,6 +249,7 @@ LIST(prefix):       list the mapped directory for the prefix (find for spec keys
 | `<change>/apply-progress` | `keel/changes/<change>/apply-progress.md` |
 | `<change>/drift` | `keel/changes/<change>/drift-report.md` |
 | `<change>/security` | `keel/changes/<change>/security-report.md` (standalone, no change: report inline) |
+| `<change>/compliance` | `keel/changes/<change>/compliance-report.md` (standalone, no change: report inline) |
 | `<change>/verify-report` | `keel/changes/<change>/verify-report.md` |
 | `<change>/archive-report` | `keel/changes/<change>/archive-report.md` |
 

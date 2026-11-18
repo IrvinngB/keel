@@ -30,7 +30,7 @@ Last refreshed: 2026-09-24
 
 ## Testing and quality
 
-- Strict TDD: ON (`strict_tdd: true`). Security review: OFF (`security_review: false`).
+- Strict TDD: ON (`strict_tdd: true`). Security review: OFF (`security_review: false`). Compliance review: OFF (`compliance_review: false`).
 - Runner: `node:test`, zero dependencies. Tests run the real CLI against throwaway git repos
   with an isolated `HOME`.
 - Full: `npm test` (`node --test`). Focused: `node --test test/<file>.test.js`.

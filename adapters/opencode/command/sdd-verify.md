@@ -17,3 +17,4 @@ verify inline.
 
 Next: `/sdd-archive` if clean, `/sdd-apply` again if FAIL. If
 `security_review: true` in `config` (or the user asks), also run `/sdd-security`.
+If `compliance_review: true` in `config` (or the user asks), also run `/sdd-compliance`.
