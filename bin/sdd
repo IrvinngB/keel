@@ -365,6 +365,74 @@ function guardDecision(dir) {
   return /Chain strategy: (?!pending)/.test(t) ? 'resolved' : 'PENDING';
 }
 
+function validateSpecContent(text) {
+  const issues = [];
+  const reqs = [...text.matchAll(/^### Requirement:\s*(.+)$/gm)];
+  if (!reqs.length) return ['no "### Requirement:" heading found'];
+  for (let i = 0; i < reqs.length; i++) {
+    const start = reqs[i].index;
+    const end = i + 1 < reqs.length ? reqs[i + 1].index : text.length;
+    const block = text.slice(start, end);
+    const name = reqs[i][1].trim();
+    const scenarios = [...block.matchAll(/^#### Scenario:\s*(.+)$/gm)];
+    if (!scenarios.length) {
+      issues.push(`requirement "${name}" has no "#### Scenario:"`);
+      continue;
+    }
+    const hasGwt = scenarios.some((s, idx) => {
+      const sEnd = idx + 1 < scenarios.length ? scenarios[idx + 1].index : block.length;
+      const body = block.slice(s.index, sEnd);
+      return /\bGIVEN\b/.test(body) && /\bWHEN\b/.test(body) && /\bTHEN\b/.test(body);
+    });
+    if (!hasGwt) issues.push(`requirement "${name}" scenario is missing GIVEN/WHEN/THEN`);
+  }
+  return issues;
+}
+
+function checkChange(dir, name) {
+  const issues = [];
+  const has = (f) => fs.existsSync(path.join(dir, f));
+  const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
+
+  if ((has('design.md') || has('apply-progress.md')) && has('clarifications.md')) {
+    const clar = read('clarifications.md');
+    const m = clar.match(/^## BLOCKER[^\n]*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
+    if (m && /^### Q\d+:/m.test(m[1])) issues.push('clarifications.md still has open BLOCKER question(s)');
+  }
+
+  const specsDir = path.join(dir, 'specs');
+  if (fs.existsSync(specsDir)) {
+    const walkSpecs = (d) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walkSpecs(p);
+        else if (e.name === 'spec.md') {
+          const rel = path.relative(dir, p);
+          for (const iss of validateSpecContent(fs.readFileSync(p, 'utf8'))) issues.push(`${rel}: ${iss}`);
+        }
+      }
+    };
+    walkSpecs(specsDir);
+  }
+
+  if (has('design.md')) {
+    const design = read('design.md');
+    if (!/^## File Changes\b/m.test(design)) issues.push('design.md missing "## File Changes"');
+    if (!/^## Testing Strategy\b/m.test(design)) issues.push('design.md missing "## Testing Strategy"');
+  }
+
+  if (has('tasks.md')) {
+    const tasks = read('tasks.md');
+    const t = taskCounts(dir);
+    const started = has('apply-progress.md') || (t && t.done > 0);
+    if (started && /^Decision needed before apply: Yes\b/m.test(tasks) && /^Chain strategy: pending\b/m.test(tasks)) {
+      issues.push('tasks.md has unresolved workload decision ("Chain strategy: pending")');
+    }
+  }
+
+  return issues;
+}
+
 // The shared skills dir says nothing about WHICH agent was installed (skills are written once
 // for every reader), so "installed" means an agent-specific artifact: its own non-shared dirs
 // or its per-agent context-file block.
@@ -740,6 +808,31 @@ function main() {
       if (DRY) return say(`would ${pos[0] || 'install'} the commit guard — dry run, nothing was written.`);
       return runGuard(pos[0] || 'install');
 
+    case 'check': {
+      const target = pos[0];
+      const changes = activeChanges();
+      if (target && !changes.includes(target)) die(`unknown active change "${target}"`);
+      const list = target ? [target] : changes;
+      if (!list.length) { say(`No active changes (${ARTIFACTS}/changes/).`); return; }
+      const storeIssues = validateStore(ARTIFACTS).filter((x) => list.includes(x.change));
+      let failed = false;
+      for (const c of list) {
+        const problems = [
+          ...storeIssues.filter((x) => x.change === c).map((x) => x.problem),
+          ...checkChange(path.join(CHANGES, c), c),
+        ];
+        if (problems.length) {
+          failed = true;
+          say(`FAIL ${c}`);
+          for (const p of problems) say(`  - ${p}`);
+        } else {
+          say(`PASS ${c}`);
+        }
+      }
+      if (failed) process.exit(1);
+      return;
+    }
+
     case undefined:
     case 'help':
       say(`Keel (sdd) — Spec-Driven Development for any coding agent
@@ -751,6 +844,7 @@ function main() {
       + commit guard (--context-file=GEMINI.md adds a second context file)
   sdd status [change]                pipeline state of active changes (no tokens)
   sdd next [change]                  next phase + exact command for this repo
+  sdd check [change]                 validate SDD gate invariants (exit 1 on fail)
   sdd doctor                         agents (verified/experimental), keel/, backend
                                      round-trip, store checks, guards
   sdd guard install|remove           universal git pre-commit guard`);
@@ -893,4 +987,4 @@ function runGuard(action) {
 }
 
 if (require.main === module) main();
-else module.exports = { validateStore, validateName, readStateStrict, stateOf, activeChanges };
+else module.exports = { validateStore, validateName, readStateStrict, stateOf, activeChanges, checkChange, validateSpecContent };

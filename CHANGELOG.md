@@ -4,6 +4,10 @@
 
 ### Added
 
+- `sdd check [change]`: deterministic, zero-token CLI validator for SDD gate invariants
+  (open clarify `BLOCKER`s, `### Requirement:`/`#### Scenario:` with `GIVEN`/`WHEN`/`THEN`,
+  required `design.md` sections, unresolved workload guard, and store structure), exiting `1`
+  on failure.
 - Read-only `sdd-compliance` review agent and `compliance` command (mirrors `sdd-security`,
   off by default via `compliance_review: false` in `keel/config.yaml`): detects privacy,
   cookie, terms, upload, and consent signals, checks only for acknowledgments (no
