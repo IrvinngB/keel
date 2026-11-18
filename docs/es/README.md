@@ -193,7 +193,8 @@ Dentro de cualquier agente instalado:
 | `/sdd:clarify` | forzar las preguntas incómodas antes del diseño |
 | `/sdd:apply` / `/sdd:verify` / `/sdd:archive` | implementar → demostrar → cerrar |
 | `/sdd:blast <symbol>` | ¿qué se rompe si cambio X? (suelto o dentro del pipeline) |
-| `/sdd:estimate` `/sdd:drift` `/sdd:security` `/sdd:steer` `/sdd:postmortem` | riesgo, divergencia, auditoría, contexto, aprendizaje |
+| `/sdd:estimate` `/sdd:drift` `/sdd:security` `/sdd:compliance` `/sdd:steer` `/sdd:postmortem` | riesgo, divergencia, seguridad, cumplimiento, contexto, aprendizaje |
+| `/sdd:help` | referencia en sesión del pipeline SDD, comandos y CLI |
 
 (Se muestra el dialecto de Claude; mira la tabla de arriba para otros agentes: `sdd next`
 siempre imprime el comando exacto para tu herramienta.)
@@ -203,8 +204,14 @@ Desde tu terminal, sin gastar tokens:
 ```bash
 sdd status            # cada cambio activo: fase, tareas x/y, decisiones pendientes
 sdd next              # el comando exacto a ejecutar, en el dialecto de tu herramienta
+sdd check [change]    # valida los invariantes de las compuertas SDD (sale con 1 si falla)
+sdd drift [change]    # compara design.md File Changes contra git diff
+sdd resume [change]   # resumen compacto para retomar sesiones largas
+sdd archive [change]  # verifica compuertas, sincroniza specs y mueve a archive/
+sdd ci                # comprobación para CI (store + gates; --strict-tasks falla con [ ])
 sdd doctor            # herramientas detectadas, adaptadores instalados, guards activos
 sdd guard install     # guard universal de pre-commit de git (cualquier agente, cualquier persona)
+sdd --version         # imprime la versión del CLI
 ```
 
 ## Qué incluye el pipeline
@@ -246,10 +253,10 @@ core/               ← única fuente de verdad (independiente de la herramienta
 ├── conventions.md      estructura de artefactos, state.yaml, envelope, guard de carga de trabajo
 ├── persistence/        interface.md + backends: archivos · SQLite · MCP genérico ·
 │                     template.md para agregar el tuyo
-├── phases/             16 contratos de fase (10 del pipeline + 6 utilidades)
-└── commands/           15 cuerpos de comando
+├── phases/             17 contratos de fase (10 del pipeline + 7 utilidades)
+└── commands/           17 cuerpos de comando
 adapters/           ← GENERADO por build/generate.js — nunca lo edites a mano
-bin/sdd             ← CLI: build · install · status · next · doctor · guard
+bin/sdd             ← CLI: build · install · status · next · check · drift · resume · archive · ci · doctor · guard
 hooks/              ← PreToolUse (Claude) + pre-commit (guard universal de git)
 ```
 
