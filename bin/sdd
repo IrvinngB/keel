@@ -639,6 +639,57 @@ function runDrift(target, baseRef, strict) {
   if (strict) process.exit(1);
 }
 
+function sharedSteeringPath() {
+  try {
+    const m = fs.readFileSync(path.join(ARTIFACTS, 'config.yaml'), 'utf8').match(/^shared_steering:\s*["']?([^\s"'#]+)/m);
+    if (m) return expand(m[1]);
+  } catch (e) { /* no config */ }
+  const def = HOME ? path.join(HOME, '.keel', 'steering') : '';
+  return def && fs.existsSync(def) ? def : null;
+}
+
+function runResume(target) {
+  const changes = activeChanges();
+  if (!changes.length) { say(`No active changes (${ARTIFACTS}/changes/).`); return; }
+  const name = target || (changes.length === 1 ? changes[0] : die(`specify a change name (${changes.join(', ')})`));
+  if (!changes.includes(name)) die(`unknown active change "${name}"`);
+
+  const dir = path.join(CHANGES, name);
+  const st = stateOf(dir);
+  const t = taskCounts(dir);
+  const tasksText = fs.existsSync(path.join(dir, 'tasks.md')) ? fs.readFileSync(path.join(dir, 'tasks.md'), 'utf8') : '';
+  const nextTasks = tasksText.split(/\r?\n/).filter((l) => /^- \[ \]/.test(l)).slice(0, 3);
+
+  const clarPath = path.join(dir, 'clarifications.md');
+  const blockers = [];
+  if (fs.existsSync(clarPath)) {
+    const m = fs.readFileSync(clarPath, 'utf8').match(/^## BLOCKER[^\n]*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
+    if (m) for (const q of m[1].matchAll(/^### (Q\d+:[^\n]+)$/gm)) blockers.push(q[1].trim());
+  }
+
+  const progPath = path.join(dir, 'apply-progress.md');
+  const lastProgress = fs.existsSync(progPath)
+    ? fs.readFileSync(progPath, 'utf8').split(/\r?\n/).filter((l) => /^- /.test(l)).slice(-3)
+    : [];
+
+  let dirty = [];
+  try {
+    const stOut = cp.execFileSync('git', ['status', '--short'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    dirty = stOut.split(/\r?\n/).filter(Boolean).slice(0, 5);
+  } catch (e) { /* not a git repo */ }
+
+  say(`Change: ${name} (phase: ${st.current_phase || '-'}, tasks: ${t ? `${t.done}/${t.done + t.pending}` : '-'}, guard: ${guardDecision(dir)})`);
+  say(`Blockers: ${blockers.length ? blockers.join(' | ') : 'none'}`);
+  say('Next tasks:');
+  if (nextTasks.length) for (const l of nextTasks) say(`  ${l}`); else say('  (none)');
+  say('Last progress:');
+  if (lastProgress.length) for (const l of lastProgress) say(`  ${l}`); else say('  (none)');
+  say(`Working tree: ${dirty.length ? dirty.join(', ') : 'clean'}`);
+  const shared = sharedSteeringPath();
+  if (shared) say(`Shared steering: ${shared}`);
+  say(`Next command: ${dialect().next}`);
+}
+
 // The shared skills dir says nothing about WHICH agent was installed (skills are written once
 // for every reader), so "installed" means an agent-specific artifact: its own non-shared dirs
 // or its per-agent context-file block.
@@ -1048,6 +1099,9 @@ function main() {
     case 'drift':
       return runDrift(pos[0], flagVals.base, flags.has('--strict'));
 
+    case 'resume':
+      return runResume(pos[0]);
+
     case 'version':
     case '--version':
     case '-v':
@@ -1069,6 +1123,7 @@ function main() {
   sdd archive [change] [--dry-run]   sync specs and archive a verified change
   sdd ci [--strict-tasks]            CI gate check (store + gates; --strict-tasks fails on [ ])
   sdd drift [change] [--base=main]   compare design.md File Changes vs git diff
+  sdd resume [change]                compact session-handover briefing (no tokens)
   sdd doctor                         agents (verified/experimental), keel/, backend
                                      round-trip, store checks, guards
   sdd guard install|remove           universal git pre-commit guard

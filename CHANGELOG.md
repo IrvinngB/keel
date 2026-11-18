@@ -4,6 +4,9 @@
 
 ### Added
 
+- `sdd resume [change]` and cross-repo lesson distillation in `sdd-postmortem`: compact
+  zero-token handover briefing for long/compacted sessions (including `~/.keel/steering` or
+  `shared_steering` detection) and optional distilled takeaways for cross-repo memory.
 - `help` command (`{{cmd:help}}` — `/sdd:help`, `/sdd-help`, `$sdd-help`, `/skill:sdd-help`):
   in-session reference explaining Keel's SDD pipeline, core/auxiliary commands, and `sdd` CLI.
 - `sdd drift [change] [--base=<ref>] [--strict]` and `sdd --version` (`-v`, `version`):

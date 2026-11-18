@@ -55,6 +55,9 @@ sdd ci: PASS (2 active change(s) checked)
 
 $ sdd drift add-dark-mode
 drift add-dark-mode: none (3 planned file(s) match)
+
+$ sdd resume add-dark-mode
+Change: add-dark-mode (phase: apply, tasks: 2/4, guard: none)
 ```
 
 And the artifacts behind it, committed with your code:
