@@ -47,6 +47,10 @@ next: /sdd:continue
 $ sdd next
 add-dark-mode: next phase = apply → run /sdd:continue add-dark-mode
 rate-limit-api: next phase = clarify → run /sdd:continue rate-limit-api
+
+$ sdd check
+PASS add-dark-mode
+PASS rate-limit-api
 ```
 
 Y los artefactos que hay detrás, versionados junto con tu código:
