@@ -65,9 +65,9 @@ for (const [f, unproven] of [['docs/install.md', /unproven/], ['docs/es/instalac
   });
 }
 
-test('CHANGELOG records Antigravity under Unreleased and leaves the 0.3.0 entry untouched', () => {
+test('CHANGELOG records Antigravity under 0.5.0/Unreleased and leaves the 0.3.0 entry untouched', () => {
   const log = read('CHANGELOG.md');
-  const unreleased = log.split(/^## 0\./m)[0];
+  const unreleased = log.split(/^## 0\.4\./m)[0];
   assert.match(unreleased, /Antigravity/);
   assert.ok(log.includes('- Antigravity (`agy`) is not supported yet: its project-level skills and commands paths\n  are unconfirmed.'));
 });
@@ -90,8 +90,8 @@ for (const [f, heading, advice, unverified, voseo] of [
   });
 }
 
-test('CHANGELOG Unreleased records the foreign-file collision warnings', () => {
-  const unreleased = read('CHANGELOG.md').split(/^## 0\./m)[0];
+test('CHANGELOG 0.5.0/Unreleased records the foreign-file collision warnings', () => {
+  const unreleased = read('CHANGELOG.md').split(/^## 0\.4\./m)[0];
   assert.match(unreleased, /same name as a Keel definition/);
   assert.doesNotMatch(unreleased, /earlier install/i);
 });
@@ -126,6 +126,6 @@ for (const f of ['docs/install.md', 'docs/es/instalacion.md']) {
   });
 }
 
-test('CHANGELOG Unreleased records GitHub Copilot', () => {
-  assert.match(read('CHANGELOG.md').split(/^## 0\./m)[0], /GitHub Copilot/);
+test('CHANGELOG 0.5.0/Unreleased records GitHub Copilot', () => {
+  assert.match(read('CHANGELOG.md').split(/^## 0\.4\./m)[0], /GitHub Copilot/);
 });
