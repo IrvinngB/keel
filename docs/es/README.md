@@ -51,6 +51,9 @@ rate-limit-api: next phase = clarify → run /sdd:continue rate-limit-api
 $ sdd check
 PASS add-dark-mode
 PASS rate-limit-api
+
+$ sdd ci
+sdd ci: PASS (2 active change(s) checked)
 ```
 
 Y los artefactos que hay detrás, versionados junto con tu código:

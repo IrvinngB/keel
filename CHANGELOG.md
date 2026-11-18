@@ -4,6 +4,10 @@
 
 ### Added
 
+- `sdd archive [change] [--dry-run]` and `sdd ci [--strict-tasks]`: deterministic CLI
+  archiving (verifies `verify-report.md` PASS, 0 pending tasks, and gate checks; syncs
+  specs; updates `state.yaml`; moves folder to `keel/changes/archive/`) and a CI entry point
+  enforcing store and gate checks.
 - `sdd check [change]`: deterministic, zero-token CLI validator for SDD gate invariants
   (open clarify `BLOCKER`s, `### Requirement:`/`#### Scenario:` with `GIVEN`/`WHEN`/`THEN`,
   required `design.md` sections, unresolved workload guard, and store structure), exiting `1`
