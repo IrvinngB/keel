@@ -126,10 +126,10 @@ solo de alcance de proyecto.
 |--------|---------------------|----------|------------|---------------------|--------|
 | Claude Code | plugin | `/sdd:new` | sí | plugin | Verified (1) |
 | opencode | `.agents/skills` | `/sdd-new` | sí | — | Tested (1) |
-| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Experimental (3) |
+| Codex CLI | `.agents/skills` | `$sdd-new` (skills) | single-phase | `AGENTS.md` | Tested (3) |
 | Gemini CLI | `.agents/skills` | `/sdd:new` (TOML) | single-phase | `GEMINI.md` | Experimental (4) |
 | Kimi Code CLI | `.agents/skills` | `/skill:sdd-new` | single-phase | `AGENTS.md` (2) | Experimental |
-| Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Experimental (5) |
+| Antigravity | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (5) | Tested (5) |
 | GitHub Copilot | `.agents/skills` | `/sdd-new` (skills) | single-phase | `AGENTS.md` (6) | Experimental (6) |
 | Generic | — | leer el archivo de la fase | single-phase | `AGENTS.md` | Verified |
 
@@ -140,12 +140,12 @@ extensión se comparó con la documentación oficial del agente en esa fecha.
 inferido: ninguno garantiza que el pipeline completo funcione dentro de ese agente.
 (1) La estructura de archivos `agents/` y `command/` viene de la versión anterior y no se
 volvió a comprobar; los comandos `/sdd-*` generados para opencode no se ejercitaron.
-(2) Que Kimi lea `AGENTS.md` es una inferencia, no está confirmado. (3) Codex no estaba
-disponible para probar. (4) Gemini CLI se está retirando para cuentas individuales en
+(2) Que Kimi lea `AGENTS.md` es una inferencia, no está confirmado. (3) Se ejercitó en
+una sesión real de Codex CLI; el soporte de subagentes sigue sin verificar. (4) Gemini CLI se está retirando para cuentas individuales en
 favor de Antigravity; Google rechazó la ejecución headless, así que no se pudo probar.
-(5) Antigravity (`agy`) se basa en su documentación (revisada el 2026-09-24) y no se
-ejercitó en una sesión real; sus directorios de detección, la ruta de skills de usuario,
-el archivo de contexto de usuario y la invocación no están verificados.
+(5) La instalación a nivel proyecto de Antigravity (`agy`) en `.agents/skills` y
+`AGENTS.md` se verificó en una sesión headless real el 2026-11-18; las rutas de usuario,
+la invocación y 2.0 IDE siguen sin verificar.
 (6) GitHub Copilot se basa en su documentación (revisada el 2026-09-25) y no se ejercitó en
 una sesión real de VS Code ni de Copilot CLI; su invocación, los subagentes y la detección
 no están verificados.

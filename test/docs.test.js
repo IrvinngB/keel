@@ -46,10 +46,9 @@ const section = (text, heading) => {
 };
 
 for (const f of ['README.md', 'docs/es/README.md']) {
-  test(`${f} lists Antigravity as Experimental and no longer says unsupported`, () => {
+  test(`${f} lists Antigravity as Tested and no longer says unsupported`, () => {
     const row = read(f).split('\n').find((l) => /^\| Antigravity /.test(l)) || '';
-    assert.match(row, /Experimental/);
-    assert.doesNotMatch(row, /Tested|Probado/);
+    assert.match(row, /Tested/);
     assert.doesNotMatch(read(f), /Antigravity \(`agy`\) (is not supported yet|todavía no)/);
   });
 }
