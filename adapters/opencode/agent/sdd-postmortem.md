@@ -68,6 +68,11 @@ From the orchestrator: change name (just archived or older).
   ones. Never edit conventions, steering docs, or archived material yourself.
 - A lesson needs evidence (commits, diffs, artifact quotes) — no vibes.
 - If plan matched reality, say so briefly; a clean postmortem is a valid result.
+- **Cross-repo distillation (optional)**: keep `lessons/<change-name>` as the
+  repo-local source of truth; if a persistent memory tool is available in the
+  session (or `config` sets `shared_steering` / `~/.keel/steering/` exists), you MAY
+  also save a 3–5 line distilled takeaway (reusable pattern or gotcha only, never
+  raw change artifacts) so future repos benefit.
   Do not invent lessons to justify the run.
 - Patterns require ≥2 occurrences across different changes; single misses stay in
   their lesson file only.

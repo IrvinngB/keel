@@ -45,6 +45,7 @@ explore → proposal → spec → clarify → design → blast-radius → tasks 
 - `sdd next [change]` — next phase and exact command to run
 - `sdd check [change]` — deterministic gate & spec validator (exits `1` on failure)
 - `sdd drift [change]` — compare `design.md` `File Changes` vs `git diff`
+- `sdd resume [change]` — compact session-handover briefing for long/resumed sessions
 - `sdd archive [change]` — verify gates, sync specs, and move change to `archive/`
 - `sdd ci [--strict-tasks]` — CI check for store health and gates
 - `sdd doctor` — inspect installed adapters, store health, and commit guard
