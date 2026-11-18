@@ -4,6 +4,9 @@
 
 ### Added
 
+- `sdd drift [change] [--base=<ref>] [--strict]` and `sdd --version` (`-v`, `version`):
+  deterministic diff check comparing `design.md` `## File Changes` against `git diff`, plus
+  standard CLI version output from `build/manifest.json`.
 - `sdd archive [change] [--dry-run]` and `sdd ci [--strict-tasks]`: deterministic CLI
   archiving (verifies `verify-report.md` PASS, 0 pending tasks, and gate checks; syncs
   specs; updates `state.yaml`; moves folder to `keel/changes/archive/`) and a CI entry point
