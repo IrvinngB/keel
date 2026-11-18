@@ -581,6 +581,64 @@ function runCi(strictTasks) {
   say(`sdd ci: PASS (${changes.length} active change(s) checked)`);
 }
 
+function plannedFiles(designText) {
+  const m = designText.match(/^## File Changes[^\n]*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
+  if (!m) return [];
+  const files = [];
+  for (const line of m[1].split(/\r?\n/)) {
+    if (!line.startsWith('|')) continue;
+    const cols = line.split('|').slice(1, -1).map((c) => c.trim());
+    if (!cols.length || /^[-:\s]+$/.test(cols[0]) || /^File$/i.test(cols[0])) continue;
+    const p = cols[0].replace(/^`|`$/g, '').replace(/\\/g, '/');
+    if (p && !p.startsWith(`${ARTIFACTS}/`) && !p.startsWith('adapters/')) files.push(p);
+  }
+  return [...new Set(files)];
+}
+
+function runDrift(target, baseRef, strict) {
+  const changes = activeChanges();
+  if (!changes.length) die(`no active changes (${ARTIFACTS}/changes/)`);
+  const name = target || (changes.length === 1 ? changes[0] : die(`specify a change name (${changes.join(', ')})`));
+  if (!changes.includes(name)) die(`unknown active change "${name}"`);
+  const designPath = path.join(CHANGES, name, 'design.md');
+  if (!fs.existsSync(designPath)) die(`${name}: design.md not found`);
+
+  const planned = plannedFiles(fs.readFileSync(designPath, 'utf8'));
+  let base = baseRef;
+  if (!base) {
+    try { cp.execFileSync('git', ['rev-parse', '--verify', 'main'], { stdio: 'ignore' }); base = 'main'; }
+    catch (e) { base = 'HEAD~1'; }
+  }
+
+  const actual = new Set();
+  try {
+    const diffOut = cp.execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const f of diffOut.split(/\r?\n/)) if (f.trim()) actual.add(f.trim());
+  } catch (e) { /* single-commit or no base */ }
+  try {
+    const stOut = cp.execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const line of stOut.split(/\r?\n/)) {
+      if (line.length > 3) {
+        const f = line.slice(3).split(' -> ').pop().trim();
+        if (f) actual.add(f);
+      }
+    }
+  } catch (e) { /* not a git repo */ }
+
+  const filtered = [...actual].filter((f) => !f.startsWith(`${ARTIFACTS}/`) && !f.startsWith('adapters/')).sort();
+  const unplanned = filtered.filter((f) => !planned.includes(f));
+  const untouched = planned.filter((f) => !filtered.includes(f));
+
+  if (!unplanned.length && !untouched.length) {
+    say(`drift ${name}: none (${planned.length} planned file(s) match)`);
+    return;
+  }
+  say(`drift ${name}:`);
+  for (const f of unplanned) say(`  + unplanned: ${f}`);
+  for (const f of untouched) say(`  - untouched: ${f}`);
+  if (strict) process.exit(1);
+}
+
 // The shared skills dir says nothing about WHICH agent was installed (skills are written once
 // for every reader), so "installed" means an agent-specific artifact: its own non-shared dirs
 // or its per-agent context-file block.
@@ -987,6 +1045,15 @@ function main() {
     case 'ci':
       return runCi(flags.has('--strict-tasks'));
 
+    case 'drift':
+      return runDrift(pos[0], flagVals.base, flags.has('--strict'));
+
+    case 'version':
+    case '--version':
+    case '-v':
+      say(`keel-sdd ${MANIFEST.plugin.version}`);
+      return;
+
     case undefined:
     case 'help':
       say(`Keel (sdd) — Spec-Driven Development for any coding agent
@@ -1001,9 +1068,11 @@ function main() {
   sdd check [change]                 validate SDD gate invariants (exit 1 on fail)
   sdd archive [change] [--dry-run]   sync specs and archive a verified change
   sdd ci [--strict-tasks]            CI gate check (store + gates; --strict-tasks fails on [ ])
+  sdd drift [change] [--base=main]   compare design.md File Changes vs git diff
   sdd doctor                         agents (verified/experimental), keel/, backend
                                      round-trip, store checks, guards
-  sdd guard install|remove           universal git pre-commit guard`);
+  sdd guard install|remove           universal git pre-commit guard
+  sdd --version                      print CLI version`);
       return;
 
     default:
@@ -1143,4 +1212,4 @@ function runGuard(action) {
 }
 
 if (require.main === module) main();
-else module.exports = { validateStore, validateName, readStateStrict, stateOf, activeChanges, checkChange, validateSpecContent };
+else module.exports = { validateStore, validateName, readStateStrict, stateOf, activeChanges, checkChange, validateSpecContent, plannedFiles };
